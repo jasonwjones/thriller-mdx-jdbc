@@ -1,0 +1,18 @@
+/** 
+ * Runs query for pulling market data and returns whatever.
+ * 
+ * @author Jason Jones
+ *
+ * -- column.1.name = MEASURE
+ * -- column.1.type = VARCHAR
+ * -- column.2.name = JAN
+ * -- column.2.type = DECIMAL
+ * -- column.3.name = FEB
+ * -- column.3.type = DECIMAL
+ * -- column.4.name = MAR
+ * -- column.4.type = DECIMAL
+ *
+ */
+ 
+SELECT CROSSJOIN({[Jan], [Feb], [Mar]}, {[Cola]}) ON COLUMNS,
+	{[Measures].Levels(0).members} ON ROWS FROM [Sample].[Basic]

@@ -1,0 +1,18 @@
+/** 
+ * Pull first quarter measures for Cola for total market
+ *
+ * -- column.1.name = MEASURE
+ * -- column.1.type = VARCHAR
+ * -- column.2.name = JAN
+ * -- column.2.type = DECIMAL
+ * -- column.3.name = FEB
+ * -- column.3.type = DECIMAL
+ * -- column.4.name = APR
+ * -- column.4.type = DECIMAL
+ * -- column.4.precision = 13
+ * -- column.4.scale = 2
+ *
+ */
+ 
+SELECT CROSSJOIN({[Jan], [Feb], [Apr]}, {[Cola]}) ON COLUMNS,
+{[Measures].Levels(0).members} ON ROWS FROM [Sample].[Basic]

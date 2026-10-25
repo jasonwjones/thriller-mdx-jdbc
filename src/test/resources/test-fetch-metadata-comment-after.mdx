@@ -1,0 +1,21 @@
+SELECT 
+
+/** 
+ * Pull alias and level informatin for products
+ * 
+ * -- column.1.name = MEMBER_NAME
+ * -- column.1.type = VARCHAR
+ * -- column.2.name = ALIAS
+ * -- column.2.type = VARCHAR
+ * -- column.3.name = LEVEL
+ * -- column.3.type = INTEGER
+ *
+ */
+
+{} ON AXIS(0),
+	Product.Members DIMENSION PROPERTIES
+	PROPERTY_EXPR (Product, MEMBER_ALIAS, CurrentAxisMember(), "Alias"),
+	PROPERTY_EXPR (Product, LEVEL_NUMBER, CurrentAxisMember(), "Level")
+ON ROWS 
+FROM Sample.Basic
+

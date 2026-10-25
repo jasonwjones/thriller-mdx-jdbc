@@ -1,0 +1,30 @@
+/**
+* Column Mapping
+*
+* -- column.1.name = ENTITY
+* -- column.1.type = VARCHAR
+* -- column.2.name = ACCOUNT
+* -- column.2.type = VARCHAR
+* -- column.3.name = PERIOD
+* -- column.3.type = VARCHAR
+* -- column.4.name = VIEW
+* -- column.4.type = VARCHAR
+* -- column.5.name = AMOUNT
+* -- column.5.type = DECIMAL
+* -- column.5.precision = 9
+* -- column.5.scale = 2
+*
+* -- thriller.print-tuple-member-separately = true
+* -- thriller.maximum-fraction-digits = 3
+*
+*/
+
+SELECT {[Actual]} ON COLUMNS,
+	Non Empty(Generate({Order(Uda([Market],"Major Market"),[Market].CurrentMember.MEMBER_NAME)}
+,CrossJoin({[Market].CurrentMember},Union(CrossJoin(Descendants([Profit],[Measures].Levels(0))
+,CrossJoin(Descendants([Year],[Year].Levels(0)),{[100]}))
+,Union(CrossJoin(Descendants([Total Expenses],[Measures].Levels(0))
+,CrossJoin(Descendants([Year],[Year].Levels(0)),{[100]}))
+,CrossJoin(Descendants([Inventory],[Measures].Levels(0))
+,CrossJoin(Descendants([Year],[Year].Levels(0)),{[200]}))))))) ON ROWS
+FROM Sample.Basic
