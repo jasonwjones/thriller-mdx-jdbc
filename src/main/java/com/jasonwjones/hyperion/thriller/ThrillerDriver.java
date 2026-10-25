@@ -9,74 +9,60 @@ import java.util.Properties;
 import java.util.logging.Logger;
 
 /**
- * 
+ * Connects to Essbase's REST API with URLs such as
+ * {@code jdbc:essbase:thriller:http://localhost:9000/essbase;app=Sample;cube=Basic}.
+ * See {@link ThrillerUrl}.
+ *
  * @author jasonwjones
  *
  */
 public class ThrillerDriver implements Driver {
 
-	private static DriverPropertyInfo[] driverProperties;
-	
-	private static boolean hasBeenRegistered = false;
-	
-	public static final String START_URL = "jdbc:essbase:thriller:";
-	
+	public static final String START_URL = ThrillerUrl.PREFIX;
+
+	public static final int MAJOR_VERSION = 1;
+
+	public static final int MINOR_VERSION = 0;
+
 	static {
 		try {
 			java.sql.DriverManager.registerDriver(new ThrillerDriver());
 		} catch (SQLException e) {
 			throw new RuntimeException("Unable to register the Thriller driver: " + e.getMessage());
 		}
-
-		DriverPropertyInfo mode = new DriverPropertyInfo("mode", "embedded");
-		mode.choices = new String[]{ "embedded", "server" };
-
-		DriverPropertyInfo essHome = new DriverPropertyInfo("essHome", null);
-		
-		driverProperties = new DriverPropertyInfo[] {
-			mode,
-			essHome
-		};		
-
 	}
-	
-	public ThrillerDriver() {
-		synchronized (this) {
-			if (!hasBeenRegistered) {
-				hasBeenRegistered = true;
-			}
-		}
-	}
-	
+
 	public Connection connect(String url, Properties info) throws SQLException {
 		// JDBC drivers are cycled through to find a winner. Return null if
 		// we don't support it
 		if (!acceptsURL(url)) {
 			return null;
 		}
-		System.out.println("Accepts URL, parsing: " + url);
-		return new ThrillerConnection(url, info);
+		return new ThrillerConnection(ThrillerUrl.parse(url), info);
 	}
 
 	public boolean acceptsURL(String url) throws SQLException {
-        if (url != null) {
-            if (url.startsWith(START_URL)) {
-                return true;
-            } 
-        }
-        return false;
+		return ThrillerUrl.accepts(url);
 	}
 
 	public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-		return driverProperties;
+		DriverPropertyInfo user = new DriverPropertyInfo("user", info.getProperty("user"));
+		user.required = true;
+		DriverPropertyInfo password = new DriverPropertyInfo("password", null);
+		password.required = true;
+		DriverPropertyInfo app = new DriverPropertyInfo("app", null);
+		app.description = "Application for queries whose FROM clause doesn't name one; set in the URL as ;app=...";
+		DriverPropertyInfo cube = new DriverPropertyInfo("cube", null);
+		cube.description = "Cube for queries whose FROM clause doesn't name one; set in the URL as ;cube=...";
+		return new DriverPropertyInfo[] { user, password, app, cube };
 	}
 
 	public int getMajorVersion() {
-		return 1;
+		return MAJOR_VERSION;
 	}
 
 	public int getMinorVersion() {
-		return 0;
+		return MINOR_VERSION;
 	}
 
 	/**

@@ -3,23 +3,31 @@ package com.jasonwjones.hyperion.thriller.parser;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.jasonwjones.hyperion.thriller.ThrillerException;
 import com.jasonwjones.hyperion.thriller.table.ThrillerColumn;
 
+/**
+ * Builds the result columns a query's hints declare, as in
+ *
+ * <pre>
+ * -- column.1.name = MEASURE
+ * -- column.1.type = VARCHAR
+ * -- column.2.name = JAN
+ * -- column.2.type = DECIMAL
+ * -- column.2.precision = 9
+ * -- column.2.scale = 2
+ * </pre>
+ */
 public class ColumnFactory {
 
-	private static final Logger logger = LoggerFactory.getLogger(ColumnFactory.class);
-	
+	private static final Pattern COLUMN_PROPERTY = Pattern.compile("column\\.(\\d+)\\.(.+)");
+
 	private Map<String, Integer> columnTypeMap;
-	
+
 	public ColumnFactory() {
 		columnTypeMap = new HashMap<String, Integer>();
 		columnTypeMap.put("VARCHAR", java.sql.Types.VARCHAR);
@@ -32,131 +40,87 @@ public class ColumnFactory {
 		columnTypeMap.put("SMALLINT", java.sql.Types.SMALLINT);
 		columnTypeMap.put("TINYINT", java.sql.Types.TINYINT);
 	}
-	
+
+	/**
+	 * @param properties the query's hints
+	 * @return whether they declare any columns
+	 */
+	public boolean hasColumns(Properties properties) {
+		for (Object property : properties.keySet()) {
+			if (COLUMN_PROPERTY.matcher((String) property).matches()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Recognized properties:
-	 * 
+	 *
 	 * type, name, precision, scale
-	 * 
-	 * @param properties
-	 * @return
+	 *
+	 * @param properties the query's hints
+	 * @return the columns, in order
+	 * @throws ThrillerException if no columns are declared, the numbering has a
+	 *             gap, or a column lacks a name or a known type
 	 */
 	public ThrillerColumn[] parse(Properties properties) throws ThrillerException {
-		
-		Map<Integer, Map<String, String>> columnProps = new HashMap<Integer, Map<String, String>>();
-		
-		Pattern pattern = Pattern.compile("column\\.(\\d+)\\.(.+)");
-		
+		TreeMap<Integer, Map<String, String>> columnProps = new TreeMap<Integer, Map<String, String>>();
 		for (Object property : properties.keySet()) {
 			String propertyName = (String) property;
-			Matcher matcher = pattern.matcher(propertyName);
-
-			if (matcher.find()) {
+			Matcher matcher = COLUMN_PROPERTY.matcher(propertyName);
+			if (matcher.matches()) {
+				Integer columnIndex;
 				try {
-					Integer columnIndex = Integer.valueOf(matcher.group(1));
-					String propName = matcher.group(2);
-					String value = properties.getProperty(propertyName);
-					if (!columnProps.containsKey(columnIndex)) {
-						columnProps.put(columnIndex, new HashMap<String, String>());
-					}
-					columnProps.get(columnIndex).put(propName, value);
+					columnIndex = Integer.valueOf(matcher.group(1));
 				} catch (NumberFormatException e) {
-					// Apparently don't need to really worry about this happening since
-					// the regex will 'filter' it out
 					throw new ColumnFactoryParseException(propertyName, matcher.group(1), e);
-				}	
-				logger.info("Property {} = {} --> {}", propertyName, matcher.group(1), matcher.group(2));
+				}
+				columnProps.computeIfAbsent(columnIndex, index -> new HashMap<String, String>())
+						.put(matcher.group(2), properties.getProperty(propertyName));
 			}
 		}
-		return createColumns(columnProps);
-	}
-	
-	public ThrillerColumn[] createColumns(Map<Integer, Map<String, String>> columnProps) throws ThrillerException {
-		Set<Integer> indices = columnProps.keySet();
-		Integer min = min(indices);
-		Integer max = max(indices);
-		
-		if (max == min && max == 0) {
-			logger.info("Query hints not specified");
+		if (columnProps.isEmpty()) {
 			throw new ColumnFactoryParseException("Query hints were not specified");
-		} else {
-			Set<Integer> missingIndices = missingIndices(indices, min, max);
-			
-			logger.info("Props: {}", columnProps);
-			logger.info("Max/min: {}, {}", max, min);
-			
-			// There are no missing indices; we have a valid column set
-			if (missingIndices.isEmpty()) {
-				ThrillerColumn[] columns = new ThrillerColumn[max];
-				for (int column = 1; column <= max; column++) {
-					Map<String, String> props = columnProps.get(column);
-					if (!props.containsKey("type")) {
-						throw new ColumnFactoryParseException("No type specified for column " + column);
-					}
-					if (!props.containsKey("name")) {
-						throw new ColumnFactoryParseException("No name specified for column " + column);
-					}
-					try {
-						columns[column - 1] = columnFromProps(props);
-					} catch (ColumnFactoryParseException e) {
-						throw new ColumnFactoryParseException("Couldn't build column number " + column);
-					}
-				}
-				return columns;
+		}
+
+		int max = columnProps.lastKey();
+		ThrillerColumn[] columns = new ThrillerColumn[max];
+		for (int column = 1; column <= max; column++) {
+			Map<String, String> props = columnProps.get(column);
+			if (props == null) {
+				throw new ColumnFactoryParseException("The hints declare columns up to " + max + " but none for column " + column);
 			}
-			logger.info("Missing indices: {}", missingIndices);
-			throw new ColumnFactoryParseException(missingIndices);
-		} 
-	}
-	
-	public static Integer min(Set<Integer> ints) {
-		int min = 0;
-		for (Integer value : ints) {
-			min = Math.min(min, value); 
-		}
-		return min;
-	}
-	
-	public static Integer max(Set<Integer> ints) {
-		int max = 0;
-		for (Integer value : ints) {
-			max = Math.max(max, value);
-		}
-		return max;
-	}
-	
-	public static Set<Integer> missingIndices(Set<Integer> indices, int min, int max) {
-		Set<Integer> missingIndices = new TreeSet<Integer>();
-		if (min != max && min != 0) {
-			for (int value = min; value <= max; value++) {
-				if (!indices.contains(value)) {
-					missingIndices.add(value);
-				}
+			if (!props.containsKey("type")) {
+				throw new ColumnFactoryParseException("No type specified for column " + column);
 			}
+			if (!props.containsKey("name")) {
+				throw new ColumnFactoryParseException("No name specified for column " + column);
+			}
+			columns[column - 1] = columnFromProps(column, props);
 		}
-		return missingIndices;
+		return columns;
 	}
-	
-	private ThrillerColumn columnFromProps(Map<String, String> props) throws ThrillerException {
-		int type = columnType(props.get("type"));
-		String name = props.get("name");
-		
-		int precision = 0;
-		int scale = 0;
-		
+
+	private ThrillerColumn columnFromProps(int column, Map<String, String> props) throws ThrillerException {
+		ThrillerColumn thrillerColumn = new ThrillerColumn(columnType(props.get("type")), number(column, props, "precision"),
+				number(column, props, "scale"));
+		thrillerColumn.setColumnName(props.get("name"));
+		return thrillerColumn;
+	}
+
+	private int number(int column, Map<String, String> props, String key) throws ThrillerException {
+		String value = props.get(key);
+		if (value == null) {
+			return 0;
+		}
 		try {
-			precision = Integer.parseInt(props.get("precision"));
-			scale = Integer.parseInt(props.get("scale"));
+			return Integer.parseInt(value);
 		} catch (NumberFormatException e) {
-			logger.warn("Couldn't parse the precision/scale of column");
+			throw new ColumnFactoryParseException("The " + key + " of column " + column + " should be a whole number, not '" + value + "'");
 		}
-		
-		logger.warn("P/S {} {}", precision, scale);
-		ThrillerColumn column = new ThrillerColumn(type, precision, scale);
-		column.setColumnName(name);
-		return column;
 	}
-	
+
 	public int columnType(String type) throws ThrillerException {
 		if (type != null) {
 			Integer colType = columnTypeMap.get(type.toUpperCase());
@@ -168,5 +132,5 @@ public class ColumnFactory {
 			throw new ColumnFactoryParseException("Type not specified");
 		}
 	}
-		
+
 }

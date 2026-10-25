@@ -8,13 +8,16 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
@@ -22,33 +25,96 @@ import java.util.concurrent.Executor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.jasonwjones.hyperion.thriller.camshaft.CamshaftMdxExecutor;
+import com.appliedolap.essbase.EssApiException;
+import com.appliedolap.essbase.EssServer;
+import com.appliedolap.essbase.impl.EssServerImpl;
 
+/**
+ * A login to an Essbase server's REST API. Read-only and without transactions:
+ * the settings tools like to change are accepted and make no difference.
+ */
 public class ThrillerConnection implements Connection {
-	
+
 	private static final Logger logger = LoggerFactory.getLogger(ThrillerConnection.class);
-	
-	private EssbaseUrl url;
-	
-	ThrillerConnection(String url, Properties props) {
-		System.out.println("Thriller connecting to: " + url);
-		this.url = EssbaseUrl.parse(url, props);
-		logger.info("Parsed URL to {}", this.url);
-	}
-	
-	public <T> T unwrap(Class<T> iface) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
+
+	private final ThrillerUrl url;
+
+	private final String user;
+
+	private final MdxExecutor executor;
+
+	private final String serverVersion;
+
+	private boolean closed;
+
+	ThrillerConnection(ThrillerUrl url, Properties info) throws SQLException {
+		this.url = url;
+		this.user = info.getProperty("user");
+		String password = info.getProperty("password");
+		if (user == null || user.isEmpty() || password == null) {
+			throw new ThrillerException("Thriller needs a user and password to log in to " + url.getServerUrl());
+		}
+		EssServer server = new EssServerImpl(url.getServerUrl(), user, password);
+		try {
+			// Asked for now, rather than on the first query, so that a wrong
+			// address or password fails at connect time where tools expect it
+			this.serverVersion = server.getAbout().getVersion();
+		} catch (EssApiException e) {
+			throw new ThrillerException("Could not log in to " + url.getServerUrl() + " as " + user + ": " + e.getMessage(), e);
+		}
+		this.executor = new RestMdxExecutor(server);
+		logger.info("Connected to Essbase {} at {}", serverVersion, url.getServerUrl());
 	}
 
-	public boolean isWrapperFor(Class<?> iface) throws SQLException {
-		return false;
+	/**
+	 * A connection that runs its queries through the given executor, for tests.
+	 */
+	ThrillerConnection(ThrillerUrl url, String user, String serverVersion, MdxExecutor executor) {
+		this.url = url;
+		this.user = user;
+		this.serverVersion = serverVersion;
+		this.executor = executor;
+	}
+
+	ThrillerUrl getUrl() {
+		return url;
+	}
+
+	String getUser() {
+		return user;
+	}
+
+	String getServerVersion() {
+		return serverVersion;
+	}
+
+	MdxExecutor getExecutor() {
+		return executor;
+	}
+
+	private void checkOpen() throws SQLException {
+		if (closed) {
+			throw new SQLException("This connection has been closed");
+		}
 	}
 
 	public Statement createStatement() throws SQLException {
-		logger.info("Creating new statement");
-		CamshaftMdxExecutor executor = new CamshaftMdxExecutor(url.getHostname(), url.getApplication(), url.getDatabase(), url.getUsername(), url.getPassword());
-		return new ThrillerStatement(executor);
+		checkOpen();
+		return new ThrillerStatement(this);
+	}
+
+	public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
+		return createStatement();
+	}
+
+	public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability)
+			throws SQLException {
+		return createStatement();
+	}
+
+	public PreparedStatement prepareStatement(String sql) throws SQLException {
+		checkOpen();
+		return new ThrillerPreparedStatement(this, sql);
 	}
 
 	/**
@@ -56,265 +122,196 @@ public class ThrillerConnection implements Connection {
 	 */
 	public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency)
 			throws SQLException {
-		logger.info("Creating new prepared statement ({}/{})", resultSetType, resultSetConcurrency);
-		CamshaftMdxExecutor executor = new CamshaftMdxExecutor(url.getHostname(), url.getApplication(), url.getDatabase(), url.getUsername(), url.getPassword());
-		return new ThrillerPreparedStatement(executor, sql);
-	}
-	
-	/// NOT IMPLEMENTED
-	
-	public PreparedStatement prepareStatement(String sql) throws SQLException {
-		logger.info("Creating prepared statement");
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public CallableStatement prepareCall(String sql) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public String nativeSQL(String sql) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public void setAutoCommit(boolean autoCommit) throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public boolean getAutoCommit() throws SQLException {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	public void commit() throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public void rollback() throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public void close() throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public boolean isClosed() throws SQLException {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	public DatabaseMetaData getMetaData() throws SQLException {
-		return new ThrillerDatabaseMetaData();
-	}
-
-	public void setReadOnly(boolean readOnly) throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public boolean isReadOnly() throws SQLException {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	public void setCatalog(String catalog) throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public String getCatalog() throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public void setTransactionIsolation(int level) throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public int getTransactionIsolation() throws SQLException {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	public SQLWarning getWarnings() throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public void clearWarnings() throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
-		logger.info("createStatement resultSetType/Concur");
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public Map<String, Class<?>> getTypeMap() throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public void setTypeMap(Map<String, Class<?>> map) throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public void setHoldability(int holdability) throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public int getHoldability() throws SQLException {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	public Savepoint setSavepoint() throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public Savepoint setSavepoint(String name) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public void rollback(Savepoint savepoint) throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public void releaseSavepoint(Savepoint savepoint) throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability)
-			throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
+		return prepareStatement(sql);
 	}
 
 	public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency,
 			int resultSetHoldability) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency,
-			int resultSetHoldability) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
+		return prepareStatement(sql);
 	}
 
 	public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
+		return prepareStatement(sql);
 	}
 
 	public PreparedStatement prepareStatement(String sql, int[] columnIndexes) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
+		return prepareStatement(sql);
 	}
 
 	public PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
+		return prepareStatement(sql);
 	}
 
-	public Clob createClob() throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
+	public DatabaseMetaData getMetaData() throws SQLException {
+		return new ThrillerDatabaseMetaData(this);
 	}
 
-	public Blob createBlob() throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
+	public void close() throws SQLException {
+		closed = true;
 	}
 
-	public NClob createNClob() throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public SQLXML createSQLXML() throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
+	public boolean isClosed() throws SQLException {
+		return closed;
 	}
 
 	public boolean isValid(int timeout) throws SQLException {
-		// TODO Auto-generated method stub
-		return false;
+		return !closed;
 	}
 
-	public void setClientInfo(String name, String value) throws SQLClientInfoException {
-		// TODO Auto-generated method stub
-
+	public String nativeSQL(String sql) throws SQLException {
+		return sql;
 	}
 
-	public void setClientInfo(Properties properties) throws SQLClientInfoException {
-		// TODO Auto-generated method stub
-
+	public boolean getAutoCommit() throws SQLException {
+		return true;
 	}
 
-	public String getClientInfo(String name) throws SQLException {
-		// TODO Auto-generated method stub
+	public void setAutoCommit(boolean autoCommit) throws SQLException {
+	}
+
+	public void commit() throws SQLException {
+	}
+
+	public void rollback() throws SQLException {
+	}
+
+	public boolean isReadOnly() throws SQLException {
+		return true;
+	}
+
+	public void setReadOnly(boolean readOnly) throws SQLException {
+	}
+
+	public int getTransactionIsolation() throws SQLException {
+		return Connection.TRANSACTION_NONE;
+	}
+
+	public void setTransactionIsolation(int level) throws SQLException {
+	}
+
+	public String getCatalog() throws SQLException {
 		return null;
 	}
 
-	public Properties getClientInfo() throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
+	public void setCatalog(String catalog) throws SQLException {
 	}
 
-	public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
-		// TODO Auto-generated method stub
+	public String getSchema() throws SQLException {
 		return null;
 	}
 
 	public void setSchema(String schema) throws SQLException {
-		// TODO Auto-generated method stub
-
 	}
 
-	public String getSchema() throws SQLException {
-		// TODO Auto-generated method stub
+	public int getHoldability() throws SQLException {
+		return ResultSet.CLOSE_CURSORS_AT_COMMIT;
+	}
+
+	public void setHoldability(int holdability) throws SQLException {
+	}
+
+	public SQLWarning getWarnings() throws SQLException {
 		return null;
 	}
 
-	public void abort(Executor executor) throws SQLException {
-		// TODO Auto-generated method stub
-
+	public void clearWarnings() throws SQLException {
 	}
 
-	public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
-		// TODO Auto-generated method stub
+	public Map<String, Class<?>> getTypeMap() throws SQLException {
+		return Collections.emptyMap();
+	}
 
+	public void setTypeMap(Map<String, Class<?>> map) throws SQLException {
+	}
+
+	public String getClientInfo(String name) throws SQLException {
+		return null;
+	}
+
+	public Properties getClientInfo() throws SQLException {
+		return new Properties();
+	}
+
+	public void setClientInfo(String name, String value) throws SQLClientInfoException {
+	}
+
+	public void setClientInfo(Properties properties) throws SQLClientInfoException {
 	}
 
 	public int getNetworkTimeout() throws SQLException {
-		// TODO Auto-generated method stub
 		return 0;
+	}
+
+	public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
+	}
+
+	public void abort(Executor executor) throws SQLException {
+		close();
+	}
+
+	public CallableStatement prepareCall(String sql) throws SQLException {
+		throw new SQLFeatureNotSupportedException("Thriller has no stored procedures");
+	}
+
+	public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
+		return prepareCall(sql);
+	}
+
+	public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency,
+			int resultSetHoldability) throws SQLException {
+		return prepareCall(sql);
+	}
+
+	public Savepoint setSavepoint() throws SQLException {
+		throw new SQLFeatureNotSupportedException("Thriller has no transactions");
+	}
+
+	public Savepoint setSavepoint(String name) throws SQLException {
+		return setSavepoint();
+	}
+
+	public void rollback(Savepoint savepoint) throws SQLException {
+		throw new SQLFeatureNotSupportedException("Thriller has no transactions");
+	}
+
+	public void releaseSavepoint(Savepoint savepoint) throws SQLException {
+		throw new SQLFeatureNotSupportedException("Thriller has no transactions");
+	}
+
+	public Clob createClob() throws SQLException {
+		throw new SQLFeatureNotSupportedException();
+	}
+
+	public Blob createBlob() throws SQLException {
+		throw new SQLFeatureNotSupportedException();
+	}
+
+	public NClob createNClob() throws SQLException {
+		throw new SQLFeatureNotSupportedException();
+	}
+
+	public SQLXML createSQLXML() throws SQLException {
+		throw new SQLFeatureNotSupportedException();
+	}
+
+	public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
+		throw new SQLFeatureNotSupportedException();
+	}
+
+	public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
+		throw new SQLFeatureNotSupportedException();
+	}
+
+	@SuppressWarnings("unchecked")
+	public <T> T unwrap(Class<T> iface) throws SQLException {
+		if (isWrapperFor(iface)) {
+			return (T) this;
+		}
+		throw new SQLException("Cannot cast to " + iface.getName());
+	}
+
+	public boolean isWrapperFor(Class<?> iface) throws SQLException {
+		return iface.isAssignableFrom(getClass());
 	}
 
 }

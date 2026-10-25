@@ -1,0 +1,77 @@
+{
+ "metadata": {
+  "page": [
+   {
+    "id": 0,
+    "name": "Measures",
+    "pov": "Sales",
+    "expand": "0"
+   },
+   {
+    "id": 1,
+    "name": "Scenario",
+    "pov": "Actual",
+    "expand": "0"
+   }
+  ],
+  "column": [
+   "Year"
+  ],
+  "row": [
+   "Market",
+   "Product"
+  ]
+ },
+ "data": [
+  [
+   "",
+   "",
+   "Jan"
+  ],
+  [
+   "Utah",
+   "100-10",
+   "130.0"
+  ],
+  [
+   "Utah",
+   "100-20",
+   "190.0"
+  ],
+  [
+   "Utah",
+   "100-30",
+   "170.0"
+  ],
+  [
+   "Nevada",
+   "100-10",
+   "76.0"
+  ],
+  [
+   "Nevada",
+   "100-20",
+   "62.0"
+  ],
+  [
+   "Nevada",
+   "100-30",
+   "#Missing"
+  ],
+  [
+   "New Hampshire",
+   "100-10",
+   "120.0"
+  ],
+  [
+   "New Hampshire",
+   "100-20",
+   "#Missing"
+  ],
+  [
+   "New Hampshire",
+   "100-30",
+   "93.0"
+  ]
+ ]
+}

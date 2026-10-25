@@ -1,42 +1,51 @@
 package com.jasonwjones.hyperion.thriller.parser;
 
-import java.io.File;
-import java.nio.charset.Charset;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.apache.commons.io.FileUtils;
-import org.junit.Before;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.Properties;
+
+import org.junit.jupiter.api.Test;
+
+import com.jasonwjones.hyperion.thriller.Fixtures;
 
 public class QueryParserTest {
 
-	private static final Logger logger = LoggerFactory.getLogger(QueryParserTest.class);
-	
-	private QueryParser parser;
-	
-	private String queryWithHint;
-	
-	private String testQuery;
-	
-	@Before
-	public void setUp() throws Exception {
-		parser = new QueryParser();
-		queryWithHint = "/* this is comment \n-- foo=bar */ SELECT Foo";
-		
-		File testQueryFile = new File("src/test/resources/test-fetch-metadata-comment-after.mdx");
-		testQuery = FileUtils.readFileToString(testQueryFile, Charset.defaultCharset());
+	private final QueryParser parser = new QueryParser();
 
-		//queryWithHint = "{{foo}} bar";
+	@Test
+	public void readsHintsFromAJavadocStyleBlock() {
+		Properties hints = parser.parse(Fixtures.text("test-major-markets.mdx")).getProperties();
+		assertEquals("ENTITY", hints.getProperty("column.1.name"));
+		assertEquals("DECIMAL", hints.getProperty("column.5.type"));
+		assertEquals("2", hints.getProperty("column.5.scale"));
+		assertEquals("true", hints.getProperty("thriller.print-tuple-member-separately"));
 	}
 
 	@Test
-	public void test() {
-		//System.out.println("Parsing: " + queryWithHint);
-		System.out.println("Will test: " + testQuery);
-		ParsedQuery parsed = parser.parse(testQuery);
-		
-		logger.info("Props: {}", parsed.getProperties());
+	public void readsHintsFromABlockInsideTheQuery() {
+		Properties hints = parser.parse(Fixtures.text("test-fetch-metadata-comment-after.mdx")).getProperties();
+		assertEquals("LEVEL", hints.getProperty("column.3.name"));
+		assertEquals("INTEGER", hints.getProperty("column.3.type"));
+	}
+
+	@Test
+	public void readsHintsWithoutLeadingAsterisks() {
+		Properties hints = parser.parse(Fixtures.text("test-fetch-metadata-no-comment-block.mdx")).getProperties();
+		assertEquals("MEMBER_NAME", hints.getProperty("column.1.name"));
+	}
+
+	@Test
+	public void findsNoHintsInAPlainQuery() {
+		assertTrue(parser.parse(Fixtures.text("test-no-hints.mdx")).getProperties().isEmpty());
+	}
+
+	@Test
+	public void leavesTheQueryAsWritten() {
+		String query = "/* this is comment \n-- foo=bar */ SELECT Foo";
+		ParsedQuery parsed = parser.parse(query);
+		assertEquals(query, parsed.getQuery());
+		assertEquals("bar", parsed.getProperties().getProperty("foo"));
 	}
 
 }

@@ -30,8 +30,8 @@ public class ThrillerPreparedStatement extends ThrillerStatement implements Prep
 	
 	private String query;
 	
-	ThrillerPreparedStatement(MdxExecutor executor, String sql) {
-		super(executor);
+	ThrillerPreparedStatement(ThrillerConnection connection, String sql) {
+		super(connection);
 		this.query = sql;
 	}
 
