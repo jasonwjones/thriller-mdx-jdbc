@@ -25,7 +25,7 @@ public class QueryParser {
 				if (processedLine.startsWith(OPTION_PREFIX)) {
 					String optionText = processedLine.substring(OPTION_PREFIX.length());
 					if (optionText.contains("=")) {
-						String[] keyAndValue = optionText.split("=");
+						String[] keyAndValue = optionText.split("=", 2);
 						properties.setProperty(keyAndValue[0].trim(), keyAndValue[1].trim());
 					}
 				}

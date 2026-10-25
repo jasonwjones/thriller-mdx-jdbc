@@ -91,6 +91,9 @@ public class ThrillerStatement implements Statement {
 		if (closed) {
 			throw new SQLException("This statement has been closed");
 		}
+		if (connection.isClosed()) {
+			throw new SQLException("This statement's connection has been closed");
+		}
 	}
 
 	private void closeResultSet() throws SQLException {

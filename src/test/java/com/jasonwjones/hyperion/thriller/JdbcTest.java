@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -17,6 +18,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.Locale;
 
 import org.junit.jupiter.api.Test;
 
@@ -146,6 +148,38 @@ public class JdbcTest {
 		connection.close();
 		assertTrue(connection.isClosed());
 		assertThrows(SQLException.class, connection::createStatement);
+	}
+
+	@Test
+	public void refusesToRunOnceTheConnectionIsClosed() throws Exception {
+		Connection connection = connect(URL);
+		Statement statement = connection.createStatement();
+		connection.close();
+		assertThrows(SQLException.class, () -> statement.executeQuery("SELECT {[Jan]} ON COLUMNS FROM Sample.Basic"));
+	}
+
+	@Test
+	public void saysWhenTheServerCannotBeReached() {
+		SQLException e = assertThrows(SQLException.class,
+				() -> DriverManager.getConnection("jdbc:essbase:thriller:http://localhost:1/essbase", "admin", "x"));
+		assertTrue(e.getMessage().startsWith("Could not reach Essbase at http://localhost:1/essbase"), e.getMessage());
+	}
+
+	@Test
+	public void findsColumnsByNameWhateverTheLocale() throws Exception {
+		Locale original = Locale.getDefault();
+		Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+		try {
+			next = Fixtures.result("measures-by-month");
+			// Upper-cased in Turkish, "Description" becomes "DESCRİPTİON", with a dotted capital I
+			String query = "/* -- column.1.name = Description\n -- column.1.type = VARCHAR */ SELECT {} ON 0 FROM Sample.Basic";
+			try (Connection connection = connect(URL); ResultSet resultSet = connection.createStatement().executeQuery(query)) {
+				assertTrue(resultSet.next());
+				assertEquals("Sales", resultSet.getString("DESCRIPTION"));
+			}
+		} finally {
+			Locale.setDefault(original);
+		}
 	}
 
 	@Test

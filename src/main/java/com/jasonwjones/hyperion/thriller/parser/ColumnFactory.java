@@ -6,6 +6,7 @@ import java.util.Properties;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.Locale;
 
 import com.jasonwjones.hyperion.thriller.ThrillerException;
 import com.jasonwjones.hyperion.thriller.table.ThrillerColumn;
@@ -123,7 +124,7 @@ public class ColumnFactory {
 
 	public int columnType(String type) throws ThrillerException {
 		if (type != null) {
-			Integer colType = columnTypeMap.get(type.toUpperCase());
+			Integer colType = columnTypeMap.get(type.toUpperCase(Locale.ROOT));
 			if (colType != null) {
 				return colType;
 			}

@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -159,7 +160,7 @@ public final class ResultSetBuilder {
 
 	private static String unique(String name, Set<String> names) {
 		String candidate = name;
-		for (int suffix = 2; !names.add(candidate.toUpperCase()); suffix++) {
+		for (int suffix = 2; !names.add(candidate.toUpperCase(Locale.ROOT)); suffix++) {
 			candidate = name + "_" + suffix;
 		}
 		return candidate;

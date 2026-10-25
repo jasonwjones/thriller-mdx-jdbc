@@ -36,6 +36,11 @@ public class QueryParserTest {
 	}
 
 	@Test
+	public void keepsEqualsSignsInAValue() {
+		assertEquals("a=b", parser.parse("/* -- note = a=b */ SELECT Foo").getProperties().getProperty("note"));
+	}
+
+	@Test
 	public void findsNoHintsInAPlainQuery() {
 		assertTrue(parser.parse(Fixtures.text("test-no-hints.mdx")).getProperties().isEmpty());
 	}

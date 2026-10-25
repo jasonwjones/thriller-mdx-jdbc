@@ -25,6 +25,7 @@ import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -59,7 +60,7 @@ public class ObjectResultSet implements ResultSet {
 		this.metaData = metaData;
 		// Walked backwards so that, of two columns with the same name, the first wins
 		for (int columnIndex = metaData.getColumnCount(); columnIndex >= 1; columnIndex--) {
-			columnLookups.put(metaData.getColumnLabel(columnIndex).toUpperCase(), columnIndex);
+			columnLookups.put(metaData.getColumnLabel(columnIndex).toUpperCase(Locale.ROOT), columnIndex);
 		}
 	}
 
@@ -349,7 +350,7 @@ public class ObjectResultSet implements ResultSet {
 
 	@Override
 	public int findColumn(String columnLabel) throws SQLException {
-		Integer columnIndex = columnLabel == null ? null : columnLookups.get(columnLabel.toUpperCase());
+		Integer columnIndex = columnLabel == null ? null : columnLookups.get(columnLabel.toUpperCase(Locale.ROOT));
 		if (columnIndex == null) {
 			throw new SQLException("No column named " + columnLabel);
 		}

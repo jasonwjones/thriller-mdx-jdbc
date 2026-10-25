@@ -60,6 +60,9 @@ public class ThrillerConnection implements Connection {
 			// address or password fails at connect time where tools expect it
 			this.serverVersion = server.getAbout().getVersion();
 		} catch (EssApiException e) {
+			if (unreachable(e)) {
+				throw new ThrillerException("Could not reach Essbase at " + url.getServerUrl() + ": " + e.getMessage(), e);
+			}
 			throw new ThrillerException("Could not log in to " + url.getServerUrl() + " as " + user + ": " + e.getMessage(), e);
 		}
 		this.executor = new RestMdxExecutor(server);
@@ -74,6 +77,16 @@ public class ThrillerConnection implements Connection {
 		this.user = user;
 		this.serverVersion = serverVersion;
 		this.executor = executor;
+	}
+
+	/**
+	 * Whether a failure was the server not answering at all - the message is
+	 * then just an exception's class name, so it helps to say what it means.
+	 */
+	private static boolean unreachable(Throwable failure) {
+		String message = failure.getMessage();
+		return message != null && (message.contains("ConnectException") || message.contains("UnknownHostException")
+				|| message.contains("HttpTimeoutException"));
 	}
 
 	ThrillerUrl getUrl() {

@@ -22,6 +22,12 @@ public class CubeNameTest {
 	}
 
 	@Test
+	public void readsApplicationAndCubeInOnePairOfBrackets() {
+		assertEquals("Sample.Basic", CubeName.fromQuery("SELECT {[Sales]} ON COLUMNS FROM [Sample.Basic]").toString());
+		assertEquals("My App.My Cube", CubeName.fromQuery("SELECT {} ON 0 FROM [My App.My Cube]").toString());
+	}
+
+	@Test
 	public void keepsSpacesInsideBrackets() {
 		assertEquals("My App.My Cube", CubeName.fromQuery("SELECT {} ON 0 from [My App] . [My Cube] WHERE ([Sales])").toString());
 	}
