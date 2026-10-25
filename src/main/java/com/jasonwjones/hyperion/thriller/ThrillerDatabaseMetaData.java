@@ -175,8 +175,15 @@ public class ThrillerDatabaseMetaData implements DatabaseMetaData {
 	}
 
 	@Override
+	/**
+	 * MDX quotes names with brackets, which JDBC has no way to say. A space, the
+	 * spec's answer for "not supported", is taken literally by tools that scan
+	 * for the end of a statement - sqlline among them - and they then see an
+	 * unclosed quote at every odd space. A double quote is safe: in MDX it only
+	 * appears in pairs, around strings such as "Alias".
+	 */
 	public String getIdentifierQuoteString() throws SQLException {
-		return " ";
+		return "\"";
 	}
 
 	@Override
@@ -606,7 +613,7 @@ public class ThrillerDatabaseMetaData implements DatabaseMetaData {
 
 	@Override
 	public int getDefaultTransactionIsolation() throws SQLException {
-		return 0;
+		return Connection.TRANSACTION_NONE;
 	}
 
 	@Override
@@ -616,7 +623,7 @@ public class ThrillerDatabaseMetaData implements DatabaseMetaData {
 
 	@Override
 	public boolean supportsTransactionIsolationLevel(int level) throws SQLException {
-		return false;
+		return level == Connection.TRANSACTION_NONE;
 	}
 
 	@Override

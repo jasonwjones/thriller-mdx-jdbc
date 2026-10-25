@@ -156,6 +156,8 @@ public class JdbcTest {
 			assertEquals("26.1.0", metaData.getDatabaseProductVersion());
 			assertEquals(URL, metaData.getURL());
 			assertSame(connection, metaData.getConnection());
+			assertEquals("\"", metaData.getIdentifierQuoteString());
+			assertTrue(metaData.supportsTransactionIsolationLevel(Connection.TRANSACTION_NONE));
 
 			ResultSet tables = metaData.getTables(null, null, "%", null);
 			assertEquals(3, tables.findColumn("TABLE_NAME"));
