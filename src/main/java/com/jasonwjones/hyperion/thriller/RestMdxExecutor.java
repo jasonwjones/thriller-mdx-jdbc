@@ -13,10 +13,10 @@ import com.appliedolap.essbase.impl.EssCubeImpl;
 /**
  * Runs MDX over Essbase's REST API, through essbase-rest-client.
  *
- * It asks for the raw JSON rather than calling {@code executeMdx(String)}:
- * that one maps the response onto a model that, as of 2.0.2, expects the
- * "page" metadata to be strings when Essbase sends objects, so it fails on
- * every query.
+ * It asks for the raw JSON rather than calling {@code executeMdx(String)},
+ * whose grid keeps the cells but not the names of the row and column
+ * dimensions - which Thriller needs to name columns and to tell header rows
+ * from data.
  */
 public class RestMdxExecutor implements MdxExecutor {
 
