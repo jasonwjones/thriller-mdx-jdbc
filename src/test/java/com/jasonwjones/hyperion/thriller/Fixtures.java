@@ -6,8 +6,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Test resources. The JSON under rest/ is what an Essbase 26.1 server returned
- * for the queries of the same name against Sample.Basic.
+ * Test resources. The JSON under rest/ is what Essbase returned for the queries
+ * of the same name against Sample.Basic: 26.1, except for the file whose name
+ * starts essbase-21, which came from 21.1.
  */
 public final class Fixtures {
 

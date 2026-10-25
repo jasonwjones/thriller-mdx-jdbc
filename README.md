@@ -19,7 +19,8 @@ sqlline> SELECT {[Jan], [Feb]} ON COLUMNS, CROSSJOIN({[East], [West]}, {[Cola], 
 Thriller started in 2016 as an experiment on top of Oracle's Essbase Java API, by way of Camshaft,
 and spent its working life giving Dodeca a way to treat MDX as a data source. Version 1.0 keeps the
 idea and the query hints and swaps the plumbing for the REST API, through
-[essbase-rest-client](https://github.com/appliedolap/essbase-rest-client).
+[essbase-rest-client](https://github.com/appliedolap/essbase-rest-client). It has been tested against
+Essbase 21.1 and 26.1.
 
 ## Connecting
 
@@ -73,16 +74,31 @@ anywhere in the query, and Essbase ignores it.
 
 ## Using it in a tool
 
-```
-mvn package
-```
-
-builds `target/thriller-mdx-jdbc-1.0.0-SNAPSHOT-all.jar`, a single jar with everything Thriller
-needs. Add it to the tool as a driver. With [sqlline](https://github.com/julianhyde/sqlline):
+Download `thriller-mdx-jdbc-<version>-all.jar` from the
+[releases page](https://github.com/jasonwjones/thriller-mdx-jdbc/releases). It's a single jar with
+everything Thriller needs; add it to the tool as a driver. With
+[sqlline](https://github.com/julianhyde/sqlline):
 
 ```
-java -cp sqlline-1.12.0-jar-with-dependencies.jar:thriller-mdx-jdbc-1.0.0-SNAPSHOT-all.jar sqlline.SqlLine \
+java -cp sqlline-1.12.0-jar-with-dependencies.jar:thriller-mdx-jdbc-1.0.0-all.jar sqlline.SqlLine \
   -u "jdbc:essbase:thriller:http://localhost:9000/essbase" -n admin -p '...'
+```
+
+To build it yourself instead, `mvn package` leaves the same jar in `target/`.
+
+## Using it from code
+
+Put the jar on the classpath and use JDBC as usual:
+
+```java
+try (Connection connection = DriverManager.getConnection(
+        "jdbc:essbase:thriller:http://localhost:9000/essbase", "admin", password);
+     ResultSet rows = connection.createStatement().executeQuery(
+        "SELECT {[Jan]} ON COLUMNS, {[East], [West]} ON ROWS FROM Sample.Basic")) {
+    while (rows.next()) {
+        System.out.println(rows.getString("Market") + ": " + rows.getDouble("Jan"));
+    }
+}
 ```
 
 ## What it doesn't do
@@ -93,6 +109,9 @@ java -cp sqlline-1.12.0-jar-with-dependencies.jar:thriller-mdx-jdbc-1.0.0-SNAPSH
 - **Stream.** Each query is one REST call, and the whole result is held in memory.
 - **Honor the old Camshaft hints.** `thriller.print-tuple-member-separately` is how the REST API
   always works now. `thriller.maximum-fraction-digits` is ignored; use a `DECIMAL` column's scale.
+- **Keep its dependencies to itself.** The single jar bundles essbase-rest-client, Spring's web
+  client and Jackson as they are. In an application with its own versions of those, use the plain
+  jar from `target/` and let your build resolve them.
 
 ## Building and testing
 
@@ -102,13 +121,25 @@ Java 17 or newer.
 mvn test
 ```
 
-runs the tests against JSON recorded from an Essbase 26.1 server, with no server needed. To run them
+runs the tests against JSON recorded from Essbase 21.1 and 26.1 servers, with no server needed. To run them
 against a live one with Sample.Basic loaded as well:
 
 ```
 THRILLER_URL=jdbc:essbase:thriller:http://localhost:9000/essbase \
 THRILLER_USER=admin THRILLER_PASSWORD=... mvn test
 ```
+
+## Releasing
+
+Set the release version in `pom.xml`, commit, and push a matching tag:
+
+```
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The release workflow checks the tag against the pom, builds and tests, and publishes a GitHub
+release with the single jar attached. Then move the pom on to the next `-SNAPSHOT` version.
 
 ## License
 

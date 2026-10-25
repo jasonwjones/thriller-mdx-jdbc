@@ -38,6 +38,14 @@ public class MdxResultTest {
 	}
 
 	@Test
+	public void readsEssbase21sShapeOfTheSameResult() throws ThrillerException {
+		// 21 sends the page dimensions as plain names and 26.1 as objects; both are ignored
+		MdxResult result = Fixtures.result("essbase-21-two-row-dimensions");
+		assertEquals(Arrays.asList("Market", "Product"), result.getRowDimensions());
+		assertEquals(Arrays.asList("East", "100-10", "1812.0", "1754.0"), result.getDataRows().get(0));
+	}
+
+	@Test
 	public void rejectsSomethingThatIsNotJson() {
 		assertThrows(ThrillerException.class, () -> MdxResult.fromJson("<html>Not Found</html>"));
 	}
