@@ -72,6 +72,18 @@ null. The types are `VARCHAR`, `NVARCHAR`, `DECIMAL`, `NUMERIC`, `DOUBLE`, `FLOA
 `SMALLINT` and `TINYINT`. A `DECIMAL` with a scale is rounded to it. The comment block can sit
 anywhere in the query, and Essbase ignores it.
 
+Some tools leave a comment off when it comes before the query, since it isn't part of the statement
+they find to run. Putting the block just after `SELECT` keeps it inside the statement:
+
+```
+SELECT
+/*
+ -- column.1.name = MEASURE
+ -- column.1.type = VARCHAR
+ */
+{[Jan]} ON COLUMNS, {[Measures].Levels(0).members} ON ROWS FROM [Sample].[Basic]
+```
+
 ## Using it in a tool
 
 Download `thriller-mdx-jdbc-<version>-all.jar` from the
@@ -85,6 +97,18 @@ java -cp sqlline-1.12.0-jar-with-dependencies.jar:thriller-mdx-jdbc-1.0.0-all.ja
 ```
 
 To build it yourself instead, `mvn package` leaves the same jar in `target/`.
+
+### IntelliJ IDEA and DataGrip
+
+1. In the Database tool window, add a **Driver**: add the jar under **Driver Files**, and choose
+   `com.jasonwjones.hyperion.thriller.ThrillerDriver` as the class.
+2. Add a **Data Source** using that driver, with the URL
+   `jdbc:essbase:thriller:http://localhost:9000/essbase` and your Essbase user and password.
+3. Run MDX in its query console.
+
+With nothing selected, the console runs the statement under the cursor, and a comment block before
+`SELECT` isn't part of it, so its hints never reach Thriller. Either select the whole query, comment
+included, before running it, or put the block after `SELECT` as shown above.
 
 ## Using it from code
 
