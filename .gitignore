@@ -3,6 +3,9 @@
 
 # Maven/Java
 target/
+
+# IDEs: Eclipse, and IntelliJ, whose data sources are local
 .classpath
 .project
 .settings/
+.idea/
