@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.jasonwjones.hyperion.thriller</groupId>
 	<artifactId>thriller-mdx-jdbc</artifactId>
-	<version>1.1.0-SNAPSHOT</version>
+	<version>1.1.0</version>
 	<name>Thriller MDX over JDBC Driver</name>
 	<description>A JDBC driver that runs Essbase MDX queries over the REST API and returns typed result sets</description>
 	<url>https://github.com/jasonwjones/thriller-mdx-jdbc</url>
