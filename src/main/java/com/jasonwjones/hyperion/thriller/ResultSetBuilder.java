@@ -35,10 +35,22 @@ public final class ResultSetBuilder {
 	 * @return a column for each cell of the widest row
 	 */
 	public static ThrillerColumn[] detectColumns(MdxResult result) {
+		return detectColumns(result, QuerySettings.Names.AS_IS);
+	}
+
+	/**
+	 * Names and types the columns of a result that came without hints, making
+	 * the names SQL-style identifiers if asked.
+	 *
+	 * @param result the MDX result
+	 * @param names how to make the names
+	 * @return a column for each cell of the widest row
+	 */
+	static ThrillerColumn[] detectColumns(MdxResult result, QuerySettings.Names names) {
 		int width = result.getWidth();
 		int memberColumns = Math.min(result.getRowDimensions().size(), width);
 		ThrillerColumn[] columns = new ThrillerColumn[width];
-		Set<String> names = new HashSet<String>();
+		Set<String> taken = new HashSet<>();
 
 		for (int index = 0; index < width; index++) {
 			String name;
@@ -50,7 +62,7 @@ public final class ResultSetBuilder {
 				name = header(result, index);
 				column = isNumeric(result, index) ? new ThrillerColumn(Types.DOUBLE, 17) : new ThrillerColumn(Types.VARCHAR, longest(result, index));
 			}
-			column.setColumnName(unique(name == null || name.isEmpty() ? "COLUMN" + (index + 1) : name, names));
+			column.setColumnName(unique(name == null || name.isEmpty() ? "COLUMN" + (index + 1) : identifier(name, names), taken));
 			columns[index] = column;
 		}
 		return columns;
@@ -66,7 +78,21 @@ public final class ResultSetBuilder {
 	 * @throws ThrillerException if a cell can't be converted to its column's type
 	 */
 	public static List<Object[]> rows(ThrillerColumn[] columns, MdxResult result) throws ThrillerException {
-		List<Object[]> rows = new ArrayList<Object[]>();
+		return rows(columns, result, QuerySettings.Missing.NULL);
+	}
+
+	/**
+	 * Converts each data row's cells to the given columns, with #Missing as
+	 * zero in numeric columns if asked.
+	 *
+	 * @param columns the columns, in order
+	 * @param result the MDX result
+	 * @param missing what #Missing becomes
+	 * @return a row of values for each data row
+	 * @throws ThrillerException if a cell can't be converted to its column's type
+	 */
+	static List<Object[]> rows(ThrillerColumn[] columns, MdxResult result, QuerySettings.Missing missing) throws ThrillerException {
+		List<Object[]> rows = new ArrayList<>();
 		boolean warned = false;
 		for (List<String> cells : result.getDataRows()) {
 			if (cells.size() > columns.length && !warned) {
@@ -75,7 +101,7 @@ public final class ResultSetBuilder {
 			}
 			Object[] row = new Object[columns.length];
 			for (int index = 0; index < columns.length && index < cells.size(); index++) {
-				row[index] = convert(columns[index], index, cells.get(index));
+				row[index] = convert(columns[index], index, cells.get(index), missing);
 			}
 			rows.add(row);
 		}
@@ -87,12 +113,19 @@ public final class ResultSetBuilder {
 	 * any column that isn't text.
 	 */
 	static Object convert(ThrillerColumn column, int index, String cell) throws ThrillerException {
+		return convert(column, index, cell, QuerySettings.Missing.NULL);
+	}
+
+	static Object convert(ThrillerColumn column, int index, String cell, QuerySettings.Missing missing) throws ThrillerException {
 		int type = column.getType();
 		if (type == Types.VARCHAR || type == Types.NVARCHAR) {
 			return cell;
 		}
 		if (isMissing(cell)) {
-			return null;
+			if (missing != QuerySettings.Missing.ZERO) {
+				return null;
+			}
+			cell = "0";
 		}
 		try {
 			switch (type) {
@@ -156,6 +189,26 @@ public final class ResultSetBuilder {
 			}
 		}
 		return header.toString();
+	}
+
+	/**
+	 * A name as the settings want it: as it is, or an identifier in capitals or
+	 * lower case, with a run of anything but letters and digits made one
+	 * underscore, so "Jan Cola" is JAN_COLA. One that would start with a digit
+	 * gets an underscore first.
+	 */
+	static String identifier(String name, QuerySettings.Names names) {
+		if (names == QuerySettings.Names.AS_IS) {
+			return name;
+		}
+		String identifier = name.replaceAll("[^\\p{L}\\p{N}]+", "_").replaceAll("^_+|_+$", "");
+		if (identifier.isEmpty()) {
+			return name;
+		}
+		if (Character.isDigit(identifier.charAt(0))) {
+			identifier = "_" + identifier;
+		}
+		return names == QuerySettings.Names.UPPER ? identifier.toUpperCase(Locale.ROOT) : identifier.toLowerCase(Locale.ROOT);
 	}
 
 	private static String unique(String name, Set<String> names) {

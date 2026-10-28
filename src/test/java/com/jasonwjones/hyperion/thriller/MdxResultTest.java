@@ -1,7 +1,6 @@
 package com.jasonwjones.hyperion.thriller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.Arrays;
 import java.util.List;
@@ -11,7 +10,7 @@ import org.junit.jupiter.api.Test;
 public class MdxResultTest {
 
 	@Test
-	public void splitsHeaderRowsFromDataRows() throws ThrillerException {
+	public void splitsHeaderRowsFromDataRows() {
 		MdxResult result = Fixtures.result("measures-by-month");
 		assertEquals(Arrays.asList("Measures"), result.getRowDimensions());
 		assertEquals(Arrays.asList("Year", "Product"), result.getColumnDimensions());
@@ -22,7 +21,7 @@ public class MdxResultTest {
 	}
 
 	@Test
-	public void readsRowsWithTwoRowDimensions() throws ThrillerException {
+	public void readsRowsWithTwoRowDimensions() {
 		MdxResult result = Fixtures.result("missing-values");
 		assertEquals(Arrays.asList("Market", "Product"), result.getRowDimensions());
 		assertEquals(9, result.getDataRows().size());
@@ -31,14 +30,14 @@ public class MdxResultTest {
 	}
 
 	@Test
-	public void treatsEveryRowAsDataWhenNothingIsOnTheColumns() throws ThrillerException {
+	public void treatsEveryRowAsDataWhenNothingIsOnTheColumns() {
 		MdxResult result = Fixtures.result("dimension-properties");
 		assertEquals(0, result.getHeaderRows().size());
 		assertEquals(Arrays.asList("100-10", "Cola", "0"), result.getDataRows().get(2));
 	}
 
 	@Test
-	public void readsEssbase21sShapeOfTheSameResult() throws ThrillerException {
+	public void readsEssbase21sShapeOfTheSameResult() {
 		// 21 sends the page dimensions as plain names and 26.1 as objects; both are ignored
 		MdxResult result = Fixtures.result("essbase-21-two-row-dimensions");
 		assertEquals(Arrays.asList("Market", "Product"), result.getRowDimensions());
@@ -46,8 +45,13 @@ public class MdxResultTest {
 	}
 
 	@Test
-	public void rejectsSomethingThatIsNotJson() {
-		assertThrows(ThrillerException.class, () -> MdxResult.fromJson("<html>Not Found</html>"));
+	public void putsBackTheHeaderCellsEssbaseLeavesOffWhenNoRowsSurvive() {
+		// NON EMPTY over a row that is all #Missing: 26.1 sends just ["Jan"], not ["", "Jan"]
+		MdxResult result = Fixtures.result("non-empty-no-rows");
+		assertEquals(Arrays.asList("Product"), result.getRowDimensions());
+		assertEquals(Arrays.asList("", "Jan"), result.getHeaderRows().get(0));
+		assertEquals(0, result.getDataRows().size());
+		assertEquals(2, result.getWidth());
 	}
 
 }

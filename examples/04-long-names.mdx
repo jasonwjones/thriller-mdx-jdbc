@@ -1,0 +1,16 @@
+/*
+ # Another alias table
+
+ Aliases come from the cube's default table unless a hint names another.
+ Sample.Basic's Long Names table spells out the months, and has nothing for
+ the markets, which keep their names.
+ */
+SELECT
+/*
+ -- members = alias
+ -- alias.table = Long Names
+ */
+{[Jan], [Feb], [Mar]} ON COLUMNS,
+[East].Children ON ROWS
+FROM Sample.Basic
+WHERE ([Sales], [Actual], [Product])

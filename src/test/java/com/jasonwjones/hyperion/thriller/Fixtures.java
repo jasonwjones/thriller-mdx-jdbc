@@ -8,7 +8,8 @@ import java.nio.charset.StandardCharsets;
 /**
  * Test resources. The JSON under rest/ is what Essbase returned for the queries
  * of the same name against Sample.Basic: 26.1, except for the file whose name
- * starts essbase-21, which came from 21.1.
+ * starts essbase-21, which came from 21.1. A result is read from it as
+ * essbase-rest-client would read the server's answer.
  */
 public final class Fixtures {
 
@@ -25,8 +26,12 @@ public final class Fixtures {
 		}
 	}
 
-	public static MdxResult result(String name) throws ThrillerException {
-		return MdxResult.fromJson(text("rest/" + name + ".json"));
+	public static MdxResult result(String name) {
+		try {
+			return MdxResult.from(new JsonMdxGrid(text("rest/" + name + ".json")));
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
 	}
 
 }

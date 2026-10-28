@@ -1,0 +1,20 @@
++--------------------+
+| Product            |
++--------------------+
+| Cola               |
+| Diet Cola          |
+| Caffeine Free Cola |
+| Old Fashioned      |
+| Diet Root Beer     |
+| Sasparilla         |
+| Birch Beer         |
+| Dark Cream         |
+| Vanilla Cream      |
+| Diet Cream         |
+| Grape              |
+| Orange             |
+| Strawberry         |
+| Shared Diet Cola   |
+| Diet Root Beer     |
+| Diet Cream         |
++--------------------+

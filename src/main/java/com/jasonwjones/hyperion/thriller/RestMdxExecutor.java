@@ -1,41 +1,55 @@
 package com.jasonwjones.hyperion.thriller;
 
-import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
+import java.net.http.HttpTimeoutException;
+import java.sql.SQLException;
+import java.sql.SQLTimeoutException;
 import java.util.HashMap;
 import java.util.Map;
 
 import com.appliedolap.essbase.EssApiException;
 import com.appliedolap.essbase.EssCube;
+import com.appliedolap.essbase.EssMdxGrid;
+import com.appliedolap.essbase.EssMdxOptions;
 import com.appliedolap.essbase.EssServer;
-import com.appliedolap.essbase.impl.EssCubeImpl;
 
 /**
  * Runs MDX over Essbase's REST API, through essbase-rest-client.
- *
- * It asks for the raw JSON rather than calling {@code executeMdx(String)},
- * whose grid keeps the cells but not the names of the row and column
- * dimensions - which Thriller needs to name columns and to tell header rows
- * from data.
  */
 public class RestMdxExecutor implements MdxExecutor {
 
 	private final EssServer server;
 
-	private final Map<String, EssCube> cubes = new HashMap<String, EssCube>();
+	private final Map<String, EssCube> cubes = new HashMap<>();
 
 	public RestMdxExecutor(EssServer server) {
 		this.server = server;
 	}
 
-	public MdxResult execute(String application, String cube, String query) throws ThrillerException {
-		ByteArrayOutputStream json = new ByteArrayOutputStream();
+	@Override
+	public MdxResult execute(String application, String cube, String query, EssMdxOptions options) throws SQLException {
+		EssMdxGrid grid;
 		try {
-			cube(application, cube).executeMdx(query, EssCube.MdxOutputType.JSON, new EssCubeImpl.MdxOptions(), json);
+			grid = cube(application, cube).executeMdx(query, options);
 		} catch (EssApiException e) {
+			if (timedOut(e)) {
+				String limit = options.getTimeout() == null ? "the client's timeout" : "its timeout of " + options.getTimeout().toSeconds() + " seconds";
+				throw new SQLTimeoutException("The query on " + application + "." + cube + " took longer than " + limit, e);
+			}
 			throw new ThrillerException("Essbase could not run the query on " + application + "." + cube + ": " + e.getMessage(), e);
 		}
-		return MdxResult.fromJson(json.toString(StandardCharsets.UTF_8));
+		return MdxResult.from(grid);
+	}
+
+	/**
+	 * Whether a failure was the query outlasting its timeout.
+	 */
+	static boolean timedOut(Throwable failure) {
+		for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+			if (cause instanceof HttpTimeoutException) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private synchronized EssCube cube(String application, String cube) throws ThrillerException {

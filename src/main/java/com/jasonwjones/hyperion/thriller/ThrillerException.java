@@ -12,5 +12,5 @@ public class ThrillerException extends SQLException {
 	public ThrillerException(String message) {
 		super(message);
 	}
-	
+
 }

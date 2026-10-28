@@ -1,0 +1,11 @@
+/*
+ # #Missing and NON EMPTY
+
+ Nevada sells no Caffeine Free Cola, so without NON EMPTY its row would be
+ all #Missing, which Thriller hands back as nulls. NON EMPTY leaves such rows
+ out. If every row drops out, the result still has its columns, just no rows.
+ */
+SELECT {[Jan], [Feb]} ON COLUMNS,
+NON EMPTY CROSSJOIN({[Nevada], [Utah]}, [Colas].Children) ON ROWS
+FROM Sample.Basic
+WHERE ([Sales], [Actual])

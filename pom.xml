@@ -3,9 +3,9 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.jasonwjones.hyperion.thriller</groupId>
 	<artifactId>thriller-mdx-jdbc</artifactId>
-	<version>1.0.1-SNAPSHOT</version>
+	<version>1.1.0-SNAPSHOT</version>
 	<name>Thriller MDX over JDBC Driver</name>
-	<description>Lies, damn lies.</description>
+	<description>A JDBC driver that runs Essbase MDX queries over the REST API and returns typed result sets</description>
 	<url>https://github.com/jasonwjones/thriller-mdx-jdbc</url>
 	<inceptionYear>2016</inceptionYear>
 
@@ -16,9 +16,18 @@
 		</license>
 	</licenses>
 
+	<developers>
+		<developer>
+			<name>Jason Jones</name>
+			<url>https://www.jasonwjones.com</url>
+		</developer>
+	</developers>
+
 	<scm>
 		<url>https://github.com/jasonwjones/thriller-mdx-jdbc</url>
 		<connection>scm:git:https://github.com/jasonwjones/thriller-mdx-jdbc.git</connection>
+		<developerConnection>scm:git:https://github.com/jasonwjones/thriller-mdx-jdbc.git</developerConnection>
+		<tag>HEAD</tag>
 	</scm>
 
 	<properties>
@@ -27,6 +36,23 @@
 	</properties>
 
 	<build>
+		<!-- thriller.properties carries the version, for the driver to report -->
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>false</filtering>
+				<excludes>
+					<exclude>**/thriller.properties</exclude>
+				</excludes>
+			</resource>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>**/thriller.properties</include>
+				</includes>
+			</resource>
+		</resources>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -77,16 +103,87 @@
 		</plugins>
 	</build>
 
+	<profiles>
+		<!-- Publishing to Maven Central, which the release workflow does for a
+			vX.Y.Z tag: sources, Javadoc and signatures for every artifact, the
+			single jar included, then an upload Central publishes on its own. -->
+		<profile>
+			<id>release</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-source-plugin</artifactId>
+						<version>3.3.1</version>
+						<executions>
+							<execution>
+								<id>attach-sources</id>
+								<goals>
+									<goal>jar-no-fork</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-javadoc-plugin</artifactId>
+						<version>3.12.0</version>
+						<executions>
+							<execution>
+								<id>attach-javadocs</id>
+								<goals>
+									<goal>jar</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-gpg-plugin</artifactId>
+						<version>3.2.8</version>
+						<executions>
+							<execution>
+								<id>sign-artifacts</id>
+								<phase>verify</phase>
+								<goals>
+									<goal>sign</goal>
+								</goals>
+								<configuration>
+									<!-- Loopback pinentry reads the passphrase from the
+										environment rather than trying to open a terminal. -->
+									<gpgArguments>
+										<arg>--pinentry-mode</arg>
+										<arg>loopback</arg>
+									</gpgArguments>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.sonatype.central</groupId>
+						<artifactId>central-publishing-maven-plugin</artifactId>
+						<!-- 0.12.0 or later: under Maven 3.10, earlier versions bundle files
+							Central rejects. -->
+						<version>0.12.0</version>
+						<extensions>true</extensions>
+						<configuration>
+							<publishingServerId>central</publishingServerId>
+							<autoPublish>true</autoPublish>
+							<!-- Validation is quick; publication can outlast the plugin's
+								timeout and look like a failure when it isn't. -->
+							<waitUntil>validated</waitUntil>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
 	<dependencies>
 		<dependency>
 			<groupId>com.appliedolap.essbase</groupId>
 			<artifactId>essbase-rest-client</artifactId>
-			<version>2.0.3</version>
-		</dependency>
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-			<version>2.22.2</version>
+			<version>2.1.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.slf4j</groupId>

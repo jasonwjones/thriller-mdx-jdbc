@@ -53,4 +53,39 @@ public class QueryParserTest {
 		assertEquals("bar", parsed.getProperties().getProperty("foo"));
 	}
 
+	@Test
+	public void blanksCommentsSoASemicolonInOneCannotEndTheQuery() {
+		String query = "/* Top products; by sales */\nSELECT /* -- members = alias */ {[Sales]} ON 0 FROM Sample.Basic";
+		String mdx = QueryParser.withoutComments(query);
+		assertEquals(query.length(), mdx.length());
+		assertEquals("SELECT {[Sales]} ON 0 FROM Sample.Basic", squeezed(mdx));
+		assertTrue(mdx.startsWith(" ".repeat(28) + "\nSELECT "), mdx);
+	}
+
+	@Test
+	public void keepsTheLineBreaksInAComment() {
+		String mdx = QueryParser.withoutComments("/*\n a\n */SELECT");
+		assertEquals(3, mdx.lines().count());
+		assertTrue(mdx.endsWith("SELECT"), mdx);
+		assertEquals("SELECT", squeezed(mdx));
+	}
+
+	@Test
+	public void leavesCommentMarkersInStringsAndNamesAlone() {
+		String query = "SELECT {[A/*B]} ON 0, Filter([Product].Members, [Product].CurrentMember.MEMBER_NAME <> \"/*x*/\") ON 1"
+				+ " WITH MEMBER [Measures].[Y] AS '[Sales] /*2*/' FROM Sample.Basic";
+		assertEquals(query, QueryParser.withoutComments(query));
+	}
+
+	@Test
+	public void blanksAnUnfinishedCommentToTheEnd() {
+		String mdx = QueryParser.withoutComments("SELECT /* oops");
+		assertEquals("SELECT", squeezed(mdx));
+		assertEquals(14, mdx.length());
+	}
+
+	private static String squeezed(String mdx) {
+		return mdx.replaceAll("\\s+", " ").strip();
+	}
+
 }

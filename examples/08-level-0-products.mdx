@@ -1,0 +1,13 @@
+/*
+ # Level 0 members
+
+ The leaves of a dimension, with nothing on the columns, make a one-column
+ list. By alias, as on the MDX Examples page this cookbook borrows from.
+ */
+SELECT
+/*
+ -- members = alias
+ */
+{} ON COLUMNS,
+{[Product].Levels(0).Members} ON ROWS
+FROM Sample.Basic

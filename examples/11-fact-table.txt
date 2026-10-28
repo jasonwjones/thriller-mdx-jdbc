@@ -1,0 +1,12 @@
++--------+-----------+----------+----------+------+--------+
+| MARKET | PRODUCT   | MEASURES | SCENARIO | YEAR | VALUE  |
++--------+-----------+----------+----------+------+--------+
+| East   | Cola      | Sales    | Actual   | Jan  | 1812.0 |
+| East   | Cola      | Sales    | Actual   | Feb  | 1754.0 |
+| East   | Root Beer | Sales    | Actual   | Jan  | 1853.0 |
+| East   | Root Beer | Sales    | Actual   | Feb  | 1966.0 |
+| West   | Cola      | Sales    | Actual   | Jan  | 1174.0 |
+| West   | Cola      | Sales    | Actual   | Feb  | 1146.0 |
+| West   | Root Beer | Sales    | Actual   | Jan  | 2723.0 |
+| West   | Root Beer | Sales    | Actual   | Feb  | 2759.0 |
++--------+-----------+----------+----------+------+--------+

@@ -49,7 +49,7 @@ public final class ThrillerUrl {
 			serverUrl = serverUrl.substring(0, serverUrl.length() - 1);
 		}
 
-		Map<String, String> properties = new LinkedHashMap<String, String>();
+		Map<String, String> properties = new LinkedHashMap<>();
 		for (int index = 1; index < parts.length; index++) {
 			String part = parts[index].trim();
 			if (part.isEmpty()) {

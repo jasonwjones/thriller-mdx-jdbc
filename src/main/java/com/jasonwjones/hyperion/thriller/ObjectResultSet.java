@@ -31,7 +31,7 @@ import java.util.Map;
 /**
  * A simple ResultSet implementation that maps a List of Object arrays and given
  * metadata in to a ResultSet.
- * 
+ *
  * @author jasonwjones
  *
  */
@@ -48,7 +48,7 @@ public class ObjectResultSet implements ResultSet {
 
 	private final ResultSetMetaData metaData;
 
-	private final Map<String, Integer> columnLookups = new HashMap<String, Integer>();
+	private final Map<String, Integer> columnLookups = new HashMap<>();
 
 	private int position = -1;
 

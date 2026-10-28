@@ -1,0 +1,12 @@
++---------------+
+| Market        |
++---------------+
+| California    |
+| Colorado      |
+| Florida       |
+| Illinois      |
+| Massachusetts |
+| New York      |
+| Ohio          |
+| Texas         |
++---------------+

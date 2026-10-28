@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
+import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -19,8 +20,13 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
 
 import org.junit.jupiter.api.Test;
+
+import com.appliedolap.essbase.EssCube;
+import com.appliedolap.essbase.EssMdxOptions;
 
 /**
  * Drives the JDBC classes the way a tool would, with an executor that answers
@@ -36,10 +42,16 @@ public class JdbcTest {
 
 	private MdxResult next;
 
+	private EssMdxOptions options;
+
+	private String query;
+
 	private ThrillerConnection connect(String url) throws ThrillerException {
-		return new ThrillerConnection(ThrillerUrl.parse(url), "admin", "26.1.0", (application, cube, query) -> {
+		return new ThrillerConnection(ThrillerUrl.parse(url), "admin", "26.1.0", (application, cube, query, options) -> {
 			this.application = application;
 			this.cube = cube;
+			this.options = options;
+			this.query = query;
 			return next;
 		});
 	}
@@ -122,6 +134,196 @@ public class JdbcTest {
 	}
 
 	@Test
+	public void aPlainQueryLeavesMemberNamingToTheServer() throws Exception {
+		next = Fixtures.result("measures-by-month");
+		try (Connection connection = connect(URL); Statement statement = connection.createStatement()) {
+			statement.executeQuery(Fixtures.text("test-no-hints.mdx"));
+			assertTrue(options.isEmpty());
+		}
+	}
+
+	@Test
+	public void namesMembersByAliasWhenTheUrlSaysTo() throws Exception {
+		next = Fixtures.result("long-names");
+		try (Connection connection = connect(URL + ";members=alias;alias.table=Long Names");
+				ResultSet resultSet = connection.createStatement().executeQuery("SELECT {[Jan]} ON COLUMNS, {[100-10]} ON ROWS FROM Sample.Basic")) {
+			assertEquals(EssCube.MdxIdentifierType.ALIAS, options.getMemberIdentifierType());
+			assertEquals("Long Names", options.getAliasTableName());
+			assertEquals("January", resultSet.getMetaData().getColumnLabel(2));
+		}
+	}
+
+	@Test
+	public void aHintOverridesTheUrlsMemberNaming() throws Exception {
+		next = Fixtures.result("measures-by-month");
+		String query = "SELECT /* -- members = name */ {[Jan]} ON COLUMNS FROM Sample.Basic";
+		try (Connection connection = connect(URL + ";members=alias"); Statement statement = connection.createStatement()) {
+			statement.executeQuery(query);
+			assertEquals(EssCube.MdxIdentifierType.NAME, options.getMemberIdentifierType());
+		}
+	}
+
+	@Test
+	public void refusesMemberNamingItDoesNotKnow() throws Exception {
+		try (Connection connection = connect(URL); Statement statement = connection.createStatement()) {
+			SQLException e = assertThrows(SQLException.class,
+					() -> statement.executeQuery("SELECT /* -- members = nicknames */ {[Jan]} ON COLUMNS FROM Sample.Basic"));
+			assertEquals("members can be name, alias or unique, not 'nicknames'", e.getMessage());
+		}
+	}
+
+	@Test
+	public void answersTheQueriesToolsUseToCheckAConnection() throws Exception {
+		try (Connection connection = connect(URL); Statement statement = connection.createStatement()) {
+			for (String query : new String[] { "select 1", "SELECT 1 FROM DUAL", "VALUES 1", "values (1)", " SELECT 1; ", "/* ping */ SELECT 1" }) {
+				ResultSet resultSet = statement.executeQuery(query);
+				assertTrue(resultSet.next(), query);
+				assertEquals(1, resultSet.getInt(1), query);
+				assertFalse(resultSet.next(), query);
+			}
+			// IntelliJ's keep-alive query when it doesn't know the database
+			ResultSet keepAlive = statement.executeQuery("select 'keep alive'");
+			assertTrue(keepAlive.next());
+			assertEquals("keep alive", keepAlive.getString(1));
+			assertEquals(Types.VARCHAR, keepAlive.getMetaData().getColumnType(1));
+
+			ResultSet aliased = statement.executeQuery("SELECT 'it''s alive' AS status FROM dual");
+			assertTrue(aliased.next());
+			assertEquals("it's alive", aliased.getString("STATUS"));
+			assertNull(application, "a validation query shouldn't reach Essbase as MDX");
+		}
+	}
+
+	@Test
+	public void takesOnlyThoseQueriesForValidation() {
+		assertFalse(ValidationQuery.matches("SELECT 1 ON COLUMNS FROM Sample.Basic"));
+		assertFalse(ValidationQuery.matches("SELECT {[Jan]} ON 0 FROM Sample.Basic"));
+		assertFalse(ValidationQuery.matches("SELECT 1 FROM Sample.Basic"));
+		assertFalse(ValidationQuery.matches("SELECT 'a', 'b'"));
+		assertFalse(ValidationQuery.matches(null));
+	}
+
+	@Test
+	public void isValidUntilClosed() throws Exception {
+		Connection connection = connect(URL);
+		assertTrue(connection.isValid(5));
+		assertThrows(SQLException.class, () -> connection.isValid(-1));
+		connection.close();
+		assertFalse(connection.isValid(5));
+	}
+
+	@Test
+	public void takesSettingsFromConnectionPropertiesWithTheUrlWinning() throws Exception {
+		Properties info = new Properties();
+		info.setProperty("user", "admin");
+		info.setProperty("password", "secret");
+		info.setProperty("members", "alias");
+		info.setProperty("alias.table", "Long Names");
+		Map<String, String> settings = ThrillerConnection.settings(ThrillerUrl.parse(URL + ";members=name"), info);
+		assertEquals("name", settings.get("members"));
+		assertEquals("Long Names", settings.get("alias.table"));
+		assertFalse(settings.containsKey("password"));
+		assertFalse(settings.containsKey("user"));
+	}
+
+	@Test
+	public void fillsInParametersAsMembersAndNumbers() throws Exception {
+		next = Fixtures.result("measures-by-month");
+		String mdx = "SELECT /* which product? */ {[Jan]} ON COLUMNS, {?} ON ROWS FROM Sample.Basic "
+				+ "WHERE ([Sales], ?, [What?]) // why?\n";
+		try (Connection connection = connect(URL); PreparedStatement statement = connection.prepareStatement(mdx)) {
+			ParameterMetaData parameters = statement.getParameterMetaData();
+			assertEquals(2, parameters.getParameterCount());
+
+			statement.setString(1, "Diet [Lite]");
+			statement.setBigDecimal(2, new BigDecimal("1.50"));
+			statement.executeQuery();
+			assertTrue(query.contains("{[Diet [Lite]]]} ON ROWS"), query);
+			assertTrue(query.contains("WHERE ([Sales], 1.50, [What?])"), query);
+
+			statement.setInt(2, 7);
+			statement.executeQuery();
+			assertTrue(query.contains("([Sales], 7, [What?])"), query);
+		}
+	}
+
+	@Test
+	public void saysWhenAPlainStatementHasAParameter() throws Exception {
+		try (Connection connection = connect(URL); Statement statement = connection.createStatement()) {
+			SQLException e = assertThrows(SQLException.class,
+					() -> statement.executeQuery("SELECT {[Jan]} ON 0,\n {?} ON 1 FROM Sample.Basic"));
+			assertTrue(e.getMessage().startsWith("The query has a ? on line 2, which only a prepared statement fills in"), e.getMessage());
+			assertNull(application, "it shouldn't reach Essbase");
+		}
+	}
+
+	@Test
+	public void refusesParametersItCannotFillIn() throws Exception {
+		try (Connection connection = connect(URL); PreparedStatement statement = connection.prepareStatement("SELECT {?} ON 0 FROM Sample.Basic")) {
+			SQLException unset = assertThrows(SQLException.class, statement::executeQuery);
+			assertEquals("Parameter 1 has no value", unset.getMessage());
+			assertThrows(SQLException.class, () -> statement.setString(2, "East"));
+			assertThrows(SQLFeatureNotSupportedException.class, () -> statement.setNull(1, Types.VARCHAR));
+			assertThrows(SQLFeatureNotSupportedException.class, () -> statement.setBoolean(1, true));
+
+			statement.setString(1, "East");
+			statement.clearParameters();
+			assertThrows(SQLException.class, statement::executeQuery);
+		}
+	}
+
+	@Test
+	public void saysWhichCubeAResultCameFrom() throws Exception {
+		next = Fixtures.result("measures-by-month");
+		try (Connection connection = connect(URL); ResultSet resultSet = connection.createStatement().executeQuery(Fixtures.text("test-no-hints.mdx"))) {
+			assertEquals("Sample", resultSet.getMetaData().getSchemaName(1));
+			assertEquals("Basic", resultSet.getMetaData().getTableName(1));
+		}
+	}
+
+	@Test
+	public void listsTheTypesAHintCanName() throws Exception {
+		try (Connection connection = connect(URL); ResultSet types = connection.getMetaData().getTypeInfo()) {
+			int last = Integer.MIN_VALUE;
+			int count = 0;
+			while (types.next()) {
+				assertTrue(types.getInt("DATA_TYPE") >= last, "sorted by DATA_TYPE");
+				last = types.getInt("DATA_TYPE");
+				count++;
+			}
+			assertEquals(9, count);
+		}
+	}
+
+	@Test
+	public void logsInWithATokenOrASessionWithoutAUser() throws Exception {
+		ThrillerUrl url = ThrillerUrl.parse(URL);
+		ThrillerConnection.server(url, Map.of("auth", "token"), null, "eyJ0b2tlbiI6dHJ1ZX0");
+		ThrillerConnection.server(url, Map.of("auth", "session", "weblogic.cookie", "wl"), null, "ABC123");
+
+		SQLException noToken = assertThrows(SQLException.class, () -> ThrillerConnection.server(url, Map.of("auth", "token"), null, null));
+		assertTrue(noToken.getMessage().contains("bearer token"), noToken.getMessage());
+		SQLException noUser = assertThrows(SQLException.class, () -> ThrillerConnection.server(url, Map.of(), null, "secret"));
+		assertTrue(noUser.getMessage().startsWith("Thriller needs a user and password"), noUser.getMessage());
+		SQLException unknown = assertThrows(SQLException.class, () -> ThrillerConnection.server(url, Map.of("auth", "kerberos"), "admin", "x"));
+		assertEquals("auth can be password, token or session, not 'kerberos'", unknown.getMessage());
+	}
+
+	@Test
+	public void aDataSourceConnectsLikeTheDriver() throws Exception {
+		ThrillerDataSource dataSource = new ThrillerDataSource();
+		assertThrows(SQLException.class, dataSource::getConnection);
+
+		dataSource.setUrl("jdbc:essbase:thriller:http://localhost:1/essbase");
+		dataSource.setUser("admin");
+		dataSource.setPassword("x");
+		dataSource.setProperty("members", "alias");
+		SQLException e = assertThrows(SQLException.class, dataSource::getConnection);
+		assertTrue(e.getMessage().startsWith("Could not reach Essbase at http://localhost:1/essbase"), e.getMessage());
+		assertTrue(dataSource.isWrapperFor(ThrillerDataSource.class));
+	}
+
+	@Test
 	public void limitsRowsToMaxRows() throws Exception {
 		next = Fixtures.result("measures-by-month");
 		try (Connection connection = connect(URL); Statement statement = connection.createStatement()) {
@@ -188,6 +390,12 @@ public class JdbcTest {
 			DatabaseMetaData metaData = connection.getMetaData();
 			assertEquals("Essbase", metaData.getDatabaseProductName());
 			assertEquals("26.1.0", metaData.getDatabaseProductVersion());
+			assertEquals(26, metaData.getDatabaseMajorVersion());
+			assertEquals(1, metaData.getDatabaseMinorVersion());
+			assertEquals(4, metaData.getJDBCMajorVersion());
+			assertEquals(3, metaData.getJDBCMinorVersion());
+			assertTrue(metaData.getDriverVersion().matches("\\d+\\.\\d+\\.\\d+.*"), metaData.getDriverVersion());
+			assertEquals(ThrillerDriver.MAJOR_VERSION, metaData.getDriverMajorVersion());
 			assertEquals(URL, metaData.getURL());
 			assertSame(connection, metaData.getConnection());
 			assertEquals("\"", metaData.getIdentifierQuoteString());

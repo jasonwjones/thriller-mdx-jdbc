@@ -12,7 +12,23 @@ public class ThrillerResultSetMetaData implements ResultSetMetaData {
 
 	private final ThrillerColumn[] columns;
 
+	private final String application;
+
+	private final String cube;
+
 	public ThrillerResultSetMetaData(ThrillerColumn[] columns) {
+		this(columns, "", "");
+	}
+
+	/**
+	 * @param columns the columns
+	 * @param application the application the result came from, reported as each
+	 *            column's schema
+	 * @param cube the cube it came from, reported as each column's table
+	 */
+	public ThrillerResultSetMetaData(ThrillerColumn[] columns, String application, String cube) {
+		this.application = application;
+		this.cube = cube;
 		this.columns = columns;
 	}
 
@@ -120,11 +136,11 @@ public class ThrillerResultSetMetaData implements ResultSetMetaData {
 	}
 
 	public String getSchemaName(int column) throws SQLException {
-		return "";
+		return application;
 	}
 
 	public String getTableName(int column) throws SQLException {
-		return "";
+		return cube;
 	}
 
 	public String getCatalogName(int column) throws SQLException {

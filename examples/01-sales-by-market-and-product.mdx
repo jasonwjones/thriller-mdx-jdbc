@@ -1,0 +1,11 @@
+/*
+ # Sales by market and product
+
+ Two dimensions on the rows become two text columns, and each month on the
+ columns becomes a numeric one. No hints needed: the columns are named for the
+ dimensions and members they hold.
+ */
+SELECT {[Jan], [Feb], [Mar]} ON COLUMNS,
+CROSSJOIN({[East], [West]}, [Colas].Children) ON ROWS
+FROM Sample.Basic
+WHERE ([Sales], [Actual])

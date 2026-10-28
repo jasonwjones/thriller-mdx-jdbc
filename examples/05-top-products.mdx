@@ -1,0 +1,18 @@
+/*
+ # Top five products
+
+ TopCount ranks a set by a measure. Diet drinks are shared members under both
+ their own family and Diet, so the level 0 products include them twice; the
+ Filter drops the shared copies, whose unique names start with a bracket.
+ */
+SELECT
+/*
+ -- members = alias
+ */
+{[Sales]} ON COLUMNS,
+TopCount(
+  Filter([Product].Levels(0).Members, LEFT([Product].CurrentMember.MEMBER_UNIQUE_NAME, 1) <> "["),
+  5, [Sales]
+) ON ROWS
+FROM Sample.Basic
+WHERE ([Actual], [Year], [Market])

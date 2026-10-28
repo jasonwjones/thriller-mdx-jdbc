@@ -1,0 +1,13 @@
+/*
+ # Products with an attribute
+
+ Attribute returns the members that carry an attribute member, here every
+ caffeinated drink.
+ */
+SELECT
+/*
+ -- members = alias
+ */
+{} ON COLUMNS,
+{Attribute([Caffeinated_True])} ON ROWS
+FROM Sample.Basic

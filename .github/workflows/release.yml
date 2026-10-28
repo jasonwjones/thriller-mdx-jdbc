@@ -2,8 +2,13 @@ name: Release
 
 run-name: Release ${{ github.ref_name }}
 
-# Pushing a tag such as v1.0.0 builds and tests that commit, then publishes a
-# GitHub release with the single jar a SQL tool needs attached.
+# Pushing a tag such as v1.1.0 builds and tests that commit, publishes it to
+# Maven Central, then publishes a GitHub release with the single jar a SQL tool
+# needs attached.
+#
+# Central needs four repository secrets: MAVEN_GPG_PRIVATE_KEY (ASCII-armored)
+# and MAVEN_GPG_PASSPHRASE to sign, and OSSRH_USERNAME and OSSRH_TOKEN, a
+# Central Portal user token for the com.jasonwjones namespace.
 on:
   push:
     tags:
@@ -29,6 +34,11 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: maven
+          server-id: central
+          server-username: OSSRH_USERNAME
+          server-password: OSSRH_TOKEN
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       - name: Check the tag matches the version
         id: version
@@ -45,8 +55,12 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Build and test
-        run: mvn --batch-mode --no-transfer-progress verify
+      - name: Build, test and publish to Maven Central
+        run: mvn --batch-mode --no-transfer-progress -Prelease deploy
+        env:
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_TOKEN: ${{ secrets.OSSRH_TOKEN }}
 
       - name: Publish the release
         env:

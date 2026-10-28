@@ -1,0 +1,22 @@
+/*
+ # Member properties as columns
+
+ DIMENSION PROPERTIES adds a column for each property after the member. With
+ nothing on the columns, every row is a member, which makes this a way to read
+ an outline into a table.
+ */
+SELECT
+/*
+ -- column.1.name = PRODUCT
+ -- column.1.type = VARCHAR
+ -- column.2.name = ALIAS
+ -- column.2.type = VARCHAR
+ -- column.3.name = LEVEL
+ -- column.3.type = INTEGER
+ */
+{} ON COLUMNS,
+[Product].Members DIMENSION PROPERTIES
+  PROPERTY_EXPR([Product], MEMBER_ALIAS, CurrentAxisMember(), "Alias"),
+  PROPERTY_EXPR([Product], LEVEL_NUMBER, CurrentAxisMember(), "Level")
+ON ROWS
+FROM Sample.Basic

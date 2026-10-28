@@ -1,0 +1,11 @@
++----------------+
+| Product        |
++----------------+
+| Cola           |
+| Diet Cola      |
+| Old Fashioned  |
+| Diet Root Beer |
+| Dark Cream     |
+| Vanilla Cream  |
+| Diet Cream     |
++----------------+

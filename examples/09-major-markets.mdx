@@ -1,0 +1,12 @@
+/*
+ # Members with a UDA, sorted
+
+ Intersect keeps the level 0 markets that carry the Major Market UDA, and
+ Order sorts them by name.
+ */
+SELECT {} ON COLUMNS,
+{Order(
+  Intersect(Uda([Market], "Major Market"), [Market].Levels(0).Members),
+  [Market].CurrentMember.MEMBER_NAME
+)} ON ROWS
+FROM Sample.Basic

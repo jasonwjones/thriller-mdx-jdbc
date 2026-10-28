@@ -1,0 +1,19 @@
+/*
+ # A fact table
+
+ The long shape turns the grid into one row for each value, with a column for
+ each dimension: what BI tools, dataframes and SQL want. The point of view's
+ members become columns too, so every row says what it measures, the members
+ are named by alias, and the column names are made into identifiers.
+ */
+SELECT
+/*
+ -- shape = long
+ -- pov = columns
+ -- names = upper
+ -- members = alias
+ */
+{[Jan], [Feb]} ON COLUMNS,
+CROSSJOIN({[East], [West]}, {[Cola], [Root Beer]}) ON ROWS
+FROM Sample.Basic
+WHERE ([Sales], [Actual])

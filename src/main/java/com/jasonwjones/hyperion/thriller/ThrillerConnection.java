@@ -18,6 +18,8 @@ import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
@@ -26,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.appliedolap.essbase.EssApiException;
+import com.appliedolap.essbase.EssAuthentication;
 import com.appliedolap.essbase.EssServer;
 import com.appliedolap.essbase.impl.EssServerImpl;
 
@@ -35,13 +38,26 @@ import com.appliedolap.essbase.impl.EssServerImpl;
  */
 public class ThrillerConnection implements Connection {
 
+	/** The setting for how to log in: password, token or session */
+	static final String AUTH = "auth";
+
+	/** The setting for a WebLogic cookie to present with a session id, when there is one */
+	static final String WEBLOGIC_COOKIE = "weblogic.cookie";
+
 	private static final Logger logger = LoggerFactory.getLogger(ThrillerConnection.class);
 
 	private final ThrillerUrl url;
 
 	private final String user;
 
+	private final Map<String, String> settings;
+
+	/** The server, or null for a connection made for tests */
+	private final EssServer server;
+
 	private final MdxExecutor executor;
+
+	private final CubeCatalog catalog;
 
 	private final String serverVersion;
 
@@ -50,11 +66,8 @@ public class ThrillerConnection implements Connection {
 	ThrillerConnection(ThrillerUrl url, Properties info) throws SQLException {
 		this.url = url;
 		this.user = info.getProperty("user");
-		String password = info.getProperty("password");
-		if (user == null || user.isEmpty() || password == null) {
-			throw new ThrillerException("Thriller needs a user and password to log in to " + url.getServerUrl());
-		}
-		EssServer server = new EssServerImpl(url.getServerUrl(), user, password);
+		this.settings = settings(url, info);
+		this.server = server(url, settings, user, info.getProperty("password"));
 		try {
 			// Asked for now, rather than on the first query, so that a wrong
 			// address or password fails at connect time where tools expect it
@@ -63,9 +76,10 @@ public class ThrillerConnection implements Connection {
 			if (unreachable(e)) {
 				throw new ThrillerException("Could not reach Essbase at " + url.getServerUrl() + ": " + e.getMessage(), e);
 			}
-			throw new ThrillerException("Could not log in to " + url.getServerUrl() + " as " + user + ": " + e.getMessage(), e);
+			throw new ThrillerException("Could not log in to " + url.getServerUrl() + (user == null ? "" : " as " + user) + ": " + e.getMessage(), e);
 		}
 		this.executor = new RestMdxExecutor(server);
+		this.catalog = new RestCubeCatalog(server);
 		logger.info("Connected to Essbase {} at {}", serverVersion, url.getServerUrl());
 	}
 
@@ -73,10 +87,84 @@ public class ThrillerConnection implements Connection {
 	 * A connection that runs its queries through the given executor, for tests.
 	 */
 	ThrillerConnection(ThrillerUrl url, String user, String serverVersion, MdxExecutor executor) {
+		this(url, user, serverVersion, executor, null);
+	}
+
+	/**
+	 * A connection that runs its queries through the given executor and browses
+	 * the given catalog, for tests.
+	 */
+	ThrillerConnection(ThrillerUrl url, String user, String serverVersion, MdxExecutor executor, CubeCatalog catalog) {
 		this.url = url;
 		this.user = user;
+		this.settings = settings(url, new Properties());
+		this.server = null;
 		this.serverVersion = serverVersion;
 		this.executor = executor;
+		this.catalog = catalog;
+	}
+
+	/**
+	 * A server to log in to the way the auth setting says: with the user and
+	 * password, the default; with the password as a bearer token; or with the
+	 * password as the id of a session established elsewhere, such as by signing
+	 * in through an identity provider, where Essbase has no password to check.
+	 * Neither of the last two needs a user.
+	 */
+	static EssServer server(ThrillerUrl url, Map<String, String> settings, String user, String password) throws ThrillerException {
+		String auth = settings.getOrDefault(AUTH, "password").trim().toLowerCase(Locale.ROOT);
+		switch (auth) {
+		case "password":
+			if (user == null || user.isEmpty() || password == null) {
+				throw new ThrillerException("Thriller needs a user and password to log in to " + url.getServerUrl());
+			}
+			return new EssServerImpl(url.getServerUrl(), user, password);
+		case "token":
+			if (password == null || password.isEmpty()) {
+				throw new ThrillerException("With auth=token, the password is the bearer token, and there isn't one");
+			}
+			return new EssServerImpl(url.getServerUrl(), EssAuthentication.bearerToken(password));
+		case "session":
+			if (password == null || password.isEmpty()) {
+				throw new ThrillerException("With auth=session, the password is the session id (JSESSIONID), and there isn't one");
+			}
+			return new EssServerImpl(url.getServerUrl(), EssAuthentication.sessionCookie(password, settings.get(WEBLOGIC_COOKIE)));
+		default:
+			throw new ThrillerException("auth can be password, token or session, not '" + auth + "'");
+		}
+	}
+
+	/**
+	 * The connection's settings, such as members=alias: its properties, which
+	 * is where a tool's driver settings put them, then the URL's, which win.
+	 * The user and password aren't settings.
+	 */
+	static Map<String, String> settings(ThrillerUrl url, Properties info) {
+		Map<String, String> settings = new LinkedHashMap<>();
+		for (String name : info.stringPropertyNames()) {
+			if (!name.equals("user") && !name.equals("password")) {
+				settings.put(name, info.getProperty(name));
+			}
+		}
+		settings.putAll(url.getProperties());
+		return Collections.unmodifiableMap(settings);
+	}
+
+	/**
+	 * Asks the server something cheap, which tells whether it still answers and
+	 * keeps the session from going idle.
+	 *
+	 * @throws ThrillerException if the server doesn't answer
+	 */
+	void ping() throws ThrillerException {
+		if (server == null) {
+			return;
+		}
+		try {
+			server.getAbout();
+		} catch (EssApiException e) {
+			throw new ThrillerException("Essbase at " + url.getServerUrl() + " didn't answer: " + e.getMessage(), e);
+		}
 	}
 
 	/**
@@ -97,12 +185,27 @@ public class ThrillerConnection implements Connection {
 		return user;
 	}
 
+	/**
+	 * @return the connection's settings, from its properties and its URL
+	 */
+	Map<String, String> getSettings() {
+		return settings;
+	}
+
 	String getServerVersion() {
 		return serverVersion;
 	}
 
 	MdxExecutor getExecutor() {
 		return executor;
+	}
+
+	/**
+	 * @return what the server has to browse, or null if this connection has
+	 *         nothing to browse
+	 */
+	CubeCatalog getCubeCatalog() {
+		return catalog;
 	}
 
 	private void checkOpen() throws SQLException {
@@ -167,8 +270,24 @@ public class ThrillerConnection implements Connection {
 		return closed;
 	}
 
+	/**
+	 * Whether the connection is open and the server still answers. Tools call
+	 * this to check a connection before they use it.
+	 */
 	public boolean isValid(int timeout) throws SQLException {
-		return !closed;
+		if (timeout < 0) {
+			throw new SQLException("The timeout can't be negative: " + timeout);
+		}
+		if (closed) {
+			return false;
+		}
+		try {
+			ping();
+			return true;
+		} catch (ThrillerException e) {
+			logger.debug("The connection is no longer valid: {}", e.getMessage());
+			return false;
+		}
 	}
 
 	public String nativeSQL(String sql) throws SQLException {

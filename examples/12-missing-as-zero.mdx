@@ -1,0 +1,14 @@
+/*
+ # #Missing as zero
+
+ Some tools would rather have zeros than nulls. Nevada sells no Caffeine Free
+ Cola, which comes back as 0 here, and as null without the hint.
+ */
+SELECT
+/*
+ -- missing = zero
+ */
+{[Jan], [Feb]} ON COLUMNS,
+{[Nevada], [Utah], [California]} ON ROWS
+FROM Sample.Basic
+WHERE ([Sales], [Actual], [100-30])

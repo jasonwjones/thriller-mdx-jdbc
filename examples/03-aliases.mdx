@@ -1,0 +1,15 @@
+/*
+ # Products by alias
+
+ Sample.Basic's products are named 100-10, 100-20 and so on, with aliases
+ like Cola. Asking for aliases names them that way. Put members=alias in the
+ connection URL to have it for every query instead.
+ */
+SELECT
+/*
+ -- members = alias
+ */
+{[Qtr1], [Qtr2], [Qtr3], [Qtr4]} ON COLUMNS,
+[Colas].Children ON ROWS
+FROM Sample.Basic
+WHERE ([Sales], [Actual], [Market])

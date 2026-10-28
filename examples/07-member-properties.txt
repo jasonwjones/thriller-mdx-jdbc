@@ -1,0 +1,26 @@
++---------+--------------------+-------+
+| PRODUCT | ALIAS              | LEVEL |
++---------+--------------------+-------+
+| Product |                    | 2     |
+| 100     | Colas              | 1     |
+| 100-10  | Cola               | 0     |
+| 100-20  | Diet Cola          | 0     |
+| 100-30  | Caffeine Free Cola | 0     |
+| 200     | Root Beer          | 1     |
+| 200-10  | Old Fashioned      | 0     |
+| 200-20  | Diet Root Beer     | 0     |
+| 200-30  | Sasparilla         | 0     |
+| 200-40  | Birch Beer         | 0     |
+| 300     | Cream Soda         | 1     |
+| 300-10  | Dark Cream         | 0     |
+| 300-20  | Vanilla Cream      | 0     |
+| 300-30  | Diet Cream         | 0     |
+| 400     | Fruit Soda         | 1     |
+| 400-10  | Grape              | 0     |
+| 400-20  | Orange             | 0     |
+| 400-30  | Strawberry         | 0     |
+| Diet    | Diet Drinks        | 1     |
+| 100-20  | Shared Diet Cola   | 0     |
+| 200-20  | Diet Root Beer     | 0     |
+| 300-30  | Diet Cream         | 0     |
++---------+--------------------+-------+

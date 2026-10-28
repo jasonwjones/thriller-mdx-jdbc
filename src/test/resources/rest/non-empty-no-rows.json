@@ -1,0 +1,35 @@
+{
+ "metadata": {
+  "page": [
+   {
+    "id": 0,
+    "name": "Measures",
+    "pov": "Sales",
+    "expand": "0"
+   },
+   {
+    "id": 1,
+    "name": "Scenario",
+    "pov": "Actual",
+    "expand": "0"
+   },
+   {
+    "id": 2,
+    "name": "Market",
+    "pov": "Nevada",
+    "expand": "0"
+   }
+  ],
+  "column": [
+   "Year"
+  ],
+  "row": [
+   "Product"
+  ]
+ },
+ "data": [
+  [
+   "Jan"
+  ]
+ ]
+}

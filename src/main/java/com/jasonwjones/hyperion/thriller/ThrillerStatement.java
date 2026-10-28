@@ -54,19 +54,35 @@ public class ThrillerStatement implements Statement {
 	public boolean execute(String sql) throws SQLException {
 		checkOpen();
 		logger.debug("Executing: {}", sql);
+		if (ValidationQuery.matches(sql)) {
+			connection.ping();
+			closeResultSet();
+			currentResultSet = ValidationQuery.result(this, sql);
+			return true;
+		}
+		List<Integer> markers = ThrillerPreparedStatement.markers(sql);
+		if (!markers.isEmpty()) {
+			// Not MDX anywhere outside a string or a name, so a tool meant it as a parameter
+			int line = (int) sql.substring(0, markers.get(0)).chars().filter(c -> c == '\n').count() + 1;
+			throw new ThrillerException("The query has a ? on line " + line + ", which only a prepared statement fills in. "
+					+ "A tool's console may have its own placeholders instead, such as IntelliJ's ${name}");
+		}
 		ParsedQuery query = parser.parse(sql);
 		Properties hints = query.getProperties();
 		CubeName cube = target(query.getQuery());
 
-		MdxResult result = connection.getExecutor().execute(cube.getApplication(), cube.getCube(), query.getQuery());
-		ThrillerColumn[] columns = columnFactory.hasColumns(hints) ? columnFactory.parse(hints) : ResultSetBuilder.detectColumns(result);
-		List<Object[]> rows = ResultSetBuilder.rows(columns, result);
+		QuerySettings settings = QuerySettings.of(connection.getSettings(), hints, queryTimeout);
+		MdxResult result = connection.getExecutor().execute(cube.getApplication(), cube.getCube(),
+				QueryParser.withoutComments(query.getQuery()), settings.options());
+		result = Reshaping.apply(result, settings);
+		ThrillerColumn[] columns = columnFactory.columns(hints, ResultSetBuilder.detectColumns(result, settings.names()));
+		List<Object[]> rows = ResultSetBuilder.rows(columns, result, settings.missing());
 		if (maxRows > 0 && rows.size() > maxRows) {
 			rows = rows.subList(0, maxRows);
 		}
 
 		closeResultSet();
-		currentResultSet = new ObjectResultSet(this, rows, new ThrillerResultSetMetaData(columns));
+		currentResultSet = new ObjectResultSet(this, rows, new ThrillerResultSetMetaData(columns, cube.getApplication(), cube.getCube()));
 		return true;
 	}
 
@@ -79,12 +95,15 @@ public class ThrillerStatement implements Statement {
 		if (named != null) {
 			return named;
 		}
-		ThrillerUrl url = connection.getUrl();
-		if (url.getApplication() != null && url.getCube() != null) {
-			return new CubeName(url.getApplication(), url.getCube());
+		String application = connection.getSettings().get("app");
+		String cube = connection.getSettings().get("cube");
+		if (application != null && cube != null) {
+			return new CubeName(application, cube);
 		}
+		String shown = query.strip().replaceAll("\\s+", " ");
 		throw new ThrillerException("The query doesn't say which cube to read: give it a FROM clause such as FROM Sample.Basic, "
-				+ "or add ;app=...;cube=... to the connection URL");
+				+ "or add ;app=...;cube=... to the connection URL. The query was: "
+				+ (shown.length() > 200 ? shown.substring(0, 200) + "..." : shown));
 	}
 
 	private void checkOpen() throws SQLException {

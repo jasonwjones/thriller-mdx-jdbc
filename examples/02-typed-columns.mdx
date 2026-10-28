@@ -1,0 +1,26 @@
+/*
+ # Choosing column names and types
+
+ A calculated member's percentages come back with every digit Essbase has.
+ Hints name the columns and make the percentage a DECIMAL rounded to one
+ place. They sit just after SELECT, so tools that only send the statement
+ still send them.
+ */
+WITH MEMBER [Measures].[Margin Pct] AS '[Margin] / [Sales] * 100'
+SELECT
+/*
+ -- column.1.name = REGION
+ -- column.1.type = VARCHAR
+ -- column.2.name = SALES
+ -- column.2.type = INTEGER
+ -- column.3.name = MARGIN
+ -- column.3.type = INTEGER
+ -- column.4.name = MARGIN_PCT
+ -- column.4.type = DECIMAL
+ -- column.4.precision = 4
+ -- column.4.scale = 1
+ */
+{[Sales], [Margin], [Margin Pct]} ON COLUMNS,
+[Market].Children ON ROWS
+FROM Sample.Basic
+WHERE ([Actual], [Year], [Product])

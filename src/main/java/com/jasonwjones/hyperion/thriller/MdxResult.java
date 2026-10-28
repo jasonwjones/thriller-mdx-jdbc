@@ -4,9 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.appliedolap.essbase.EssMdxGrid;
 
 /**
  * An MDX query's result as Essbase's REST API returns it. The grid starts with
@@ -21,8 +19,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public final class MdxResult {
 
-	private static final ObjectMapper MAPPER = new ObjectMapper();
-
 	private final List<String> rowDimensions;
 
 	private final List<String> columnDimensions;
@@ -31,47 +27,77 @@ public final class MdxResult {
 
 	private final List<List<String>> dataRows;
 
+	private final List<String> pageDimensions;
+
+	private final List<String> pageMembers;
+
 	public MdxResult(List<String> rowDimensions, List<String> columnDimensions, List<List<String>> headerRows,
 			List<List<String>> dataRows) {
+		this(rowDimensions, columnDimensions, headerRows, dataRows, List.of(), List.of());
+	}
+
+	/**
+	 * @param rowDimensions the dimensions on the rows
+	 * @param columnDimensions the dimensions on the columns
+	 * @param headerRows a row of members for each dimension on the columns
+	 * @param dataRows the rows of members and values
+	 * @param pageDimensions the dimensions on neither axis
+	 * @param pageMembers the member of each, or nulls if the server didn't say
+	 */
+	public MdxResult(List<String> rowDimensions, List<String> columnDimensions, List<List<String>> headerRows,
+			List<List<String>> dataRows, List<String> pageDimensions, List<String> pageMembers) {
 		this.rowDimensions = Collections.unmodifiableList(rowDimensions);
 		this.columnDimensions = Collections.unmodifiableList(columnDimensions);
 		this.headerRows = Collections.unmodifiableList(headerRows);
 		this.dataRows = Collections.unmodifiableList(dataRows);
+		this.pageDimensions = Collections.unmodifiableList(pageDimensions);
+		this.pageMembers = Collections.unmodifiableList(new ArrayList<>(pageMembers));
 	}
 
 	/**
-	 * Reads the JSON the REST API's MDX endpoint returns:
-	 * {"metadata": {"row": [...], "column": [...], "page": [...]}, "data": [[...], ...]}
+	 * Reads the grid essbase-rest-client returns.
 	 *
-	 * @param json the response body
+	 * When no rows survive the query, such as a NON EMPTY that drops them all,
+	 * Essbase leaves out the empty cells that sit over the row members in each
+	 * header row. They're put back here, so the headers line up with the data
+	 * columns as they would with rows under them.
+	 *
+	 * @param grid the query's result
 	 * @return the result
-	 * @throws ThrillerException if the JSON can't be read
 	 */
-	public static MdxResult fromJson(String json) throws ThrillerException {
-		JsonNode root;
-		try {
-			root = MAPPER.readTree(json);
-		} catch (JsonProcessingException e) {
-			throw new ThrillerException("Could not read the MDX result Essbase returned", e);
+	public static MdxResult from(EssMdxGrid grid) {
+		List<List<String>> rows = new ArrayList<>();
+		for (int row = 0; row < grid.getRows(); row++) {
+			List<String> cells = new ArrayList<>();
+			for (int column = 0; column < grid.getColumns(); column++) {
+				cells.add(grid.getCell(row, column));
+			}
+			// The grid pads a short row with nulls; the row Essbase sent ended sooner
+			while (!cells.isEmpty() && cells.get(cells.size() - 1) == null) {
+				cells.remove(cells.size() - 1);
+			}
+			rows.add(cells);
 		}
-		JsonNode metadata = root.path("metadata");
-		List<String> rowDimensions = strings(metadata.path("row"));
-		List<String> columnDimensions = strings(metadata.path("column"));
-
-		List<List<String>> grid = new ArrayList<List<String>>();
-		for (JsonNode row : root.path("data")) {
-			grid.add(strings(row));
+		int headers = grid.getHeaderRows();
+		List<List<String>> headerRows = new ArrayList<>();
+		for (List<String> header : rows.subList(0, headers)) {
+			headerRows.add(padded(header, grid.getRowDimensions().size()));
 		}
-		int headers = Math.min(columnDimensions.size(), grid.size());
-		return new MdxResult(rowDimensions, columnDimensions, grid.subList(0, headers), grid.subList(headers, grid.size()));
+		return new MdxResult(grid.getRowDimensions(), grid.getColumnDimensions(), headerRows, rows.subList(headers, rows.size()),
+				grid.getPageDimensions(), grid.getPageMembers());
 	}
 
-	private static List<String> strings(JsonNode array) {
-		List<String> values = new ArrayList<String>();
-		for (JsonNode value : array) {
-			values.add(value.isNull() ? null : value.asText());
+	/**
+	 * A header row with the empty cells over the row members, which a header
+	 * row has unless Essbase left them out.
+	 */
+	private static List<String> padded(List<String> header, int rowDimensions) {
+		if (rowDimensions == 0 || header.isEmpty() || header.get(0) == null || header.get(0).isEmpty()) {
+			return header;
 		}
-		return values;
+		List<String> padded = new ArrayList<>(Collections.nCopies(rowDimensions, ""));
+		padded.addAll(header);
+		return padded;
 	}
 
 	/**
@@ -91,6 +117,22 @@ public final class MdxResult {
 
 	public List<List<String>> getDataRows() {
 		return dataRows;
+	}
+
+	/**
+	 * @return the dimensions on neither axis, which each contribute one member
+	 *         to every cell
+	 */
+	public List<String> getPageDimensions() {
+		return pageDimensions;
+	}
+
+	/**
+	 * @return the member of each page dimension, or nulls if the server didn't
+	 *         say which
+	 */
+	public List<String> getPageMembers() {
+		return pageMembers;
 	}
 
 	/**
